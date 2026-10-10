@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+*.egg-info/
+src/superset_jalali/static/*
+frontend/test/fixtures.json

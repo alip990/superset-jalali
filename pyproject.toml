@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "superset-jalali"
+version = "0.1.0"
+description = "Jalali dashboard time range picker and PostgreSQL Jinja macros for Apache Superset"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = ["Flask>=2.2,<4", "Flask-Login>=0.6,<1"]
+classifiers = ["Programming Language :: Python :: 3", "Framework :: Flask"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "jdatetime==6.1.0", "persiantools==4.0.0", "sqlglot>=25", "build>=1.2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/superset_jalali"]
+
+[tool.hatch.build]
+artifacts = ["src/superset_jalali/static/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

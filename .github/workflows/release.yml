@@ -1,0 +1,73 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Check tag version
+        run: |
+          python - <<'PY'
+          import os, tomllib
+          with open('pyproject.toml', 'rb') as file:
+              version = tomllib.load(file)['project']['version']
+          assert os.environ['GITHUB_REF_NAME'] == 'v' + version
+          PY
+      - run: npm ci && npm test && npm run build
+        working-directory: frontend
+      - run: pip install -e '.[dev]' && pytest
+      - run: python -m build
+      - name: Check wheel assets
+        run: |
+          python - <<'PY'
+          import glob, json, zipfile
+          with zipfile.ZipFile(glob.glob('dist/*.whl')[0]) as wheel:
+              manifest = json.loads(wheel.read('superset_jalali/static/manifest.json'))
+              bundle = 'superset_jalali/static/' + manifest['bundle']
+              assert bundle in wheel.namelist()
+              assert wheel.read(bundle)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/*
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+      - name: Attach wheel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" dist/*.whl --verify-tag --generate-notes
