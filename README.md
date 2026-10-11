@@ -35,10 +35,13 @@ PyPI publication, install the built wheel instead of the version above.
 
 | Plugin | Superset | Verification |
 | --- | --- | --- |
-| 0.1.x | 6.1.x | 6.1.0 source integration checked; real-instance verification pending |
+| 0.1.x | 6.1.x | real-instance verification pending |
 
 Complete [docs/VERIFY.md](docs/VERIFY.md) before each release and before upgrading
 Superset. This plugin relies on internal APIs; other versions are not supported.
+Report completed checks in a [GitHub issue](https://github.com/alip990/superset-jalali/issues/new),
+including the Superset patch version, plugin version, environment details and
+each checklist result described in `docs/VERIFY.md`.
 
 ## What users see
 
@@ -293,10 +296,32 @@ packaging. CI checks that the wheel contains its manifest's JS file.
 
 Configure a PyPI Trusted Publisher for package `superset-jalali`, your GitHub
 owner/repository, workflow `release.yml`, and environment `pypi`; create that
-GitHub environment. After completing the manual checklist, update the version
-and changelog, then push a matching `v` tag (for example `v0.1.0`). The workflow
-rebuilds and tests, publishes to PyPI using OIDC, and attaches the wheel to a
-GitHub release. No PyPI token is stored in the repository.
+GitHub environment. The release workflow rebuilds and tests, publishes to PyPI
+using OIDC, and attaches the wheel to a GitHub release. No PyPI token is stored
+in the repository.
+
+## Release checklist
+
+For maintainers, complete these steps before pushing a release tag:
+
+- [ ] Configure PyPI Trusted Publishing for project `superset-jalali`, GitHub
+  owner `alip990`, repository `superset-jalali`, workflow `release.yml` and
+  environment `pypi`; ensure the GitHub `pypi` environment exists.
+- [ ] Set or bump the release version in `pyproject.toml`, the sole version
+  source, and finalize its CHANGELOG entry. For this first release, use `0.1.0`.
+- [ ] Run the frontend tests/build, `pytest` and `python -m build`; confirm the
+  wheel includes its hashed JS bundle and manifest.
+- [ ] Complete [docs/VERIFY.md](docs/VERIFY.md) on Superset **6.1.x**, recording
+  the exact patch version and all results. Include an admin dashboard, an
+  embedded dashboard with a guest token, missing-bundle fallback, Escape inside
+  the filter-settings dialog, dark mode and the host theme font, timezone-aware
+  macros, startup logging and health states.
+- [ ] After real-instance verification passes, record the tested version and
+  date in the compatibility table. Keep it pending until those checks are done.
+- [ ] Commit and push the release preparation, then push `v<version>` matching
+  `pyproject.toml` (for example, `git tag v0.1.0` then
+  `git push origin v0.1.0`). Confirm the release workflow succeeds and the wheel
+  is attached to the GitHub release.
 
 ## License
 
