@@ -62,6 +62,42 @@ it('keeps a calendar selection when switching to the raw expression tab', () => 
   expect(onChange).toHaveBeenCalledWith('2024-09-22T00:00:00 : 2024-10-22T00:00:00');
 });
 
+it.each([
+  ['1403/07/01', ''],
+  ['', '1403/07/30'],
+  ['1403/07/01', 'invalid'],
+  ['1403/07/30', '1403/07/01'],
+])('discards an incomplete or invalid calendar range %s to %s when switching tabs', (from, to) => {
+  open(); tab(1);
+  act(() => {
+    tree.root.findByProps({'aria-label':'تاریخ آغاز'}).props.onChange({target:{value:from}});
+    tree.root.findByProps({'aria-label':'تاریخ پایان'}).props.onChange({target:{value:to}});
+  });
+  apply();
+  expect(tree.root.findAllByProps({role:'alert'})).toHaveLength(1);
+  tab(2);
+  expect(tree.root.findByProps({className:'sj-raw'}).props.value).toBe('No filter');
+  expect(tree.root.findAllByProps({role:'alert'})).toHaveLength(0);
+  tab(1);
+  expect(tree.root.findByProps({'aria-label':'تاریخ آغاز'}).props.value).toBe('');
+  expect(tree.root.findByProps({'aria-label':'تاریخ پایان'}).props.value).toBe('');
+  expect(tree.root.findByType(Calendar).props.start).toBeUndefined();
+  expect(tree.root.findByType(Calendar).props.end).toBeUndefined();
+});
+
+it('keeps two valid date inputs in the draft when switching tabs', () => {
+  open(); tab(1);
+  act(() => {
+    tree.root.findByProps({'aria-label':'تاریخ آغاز'}).props.onChange({target:{value:'1403/07/01'}});
+    tree.root.findByProps({'aria-label':'تاریخ پایان'}).props.onChange({target:{value:'1403/07/30'}});
+  });
+  tab(2);
+  expect(tree.root.findByProps({className:'sj-raw'}).props.value).toBe('2024-09-22T00:00:00 : 2024-10-22T00:00:00');
+  tab(1);
+  expect(tree.root.findByProps({'aria-label':'تاریخ آغاز'}).props.value).toBe('۱۴۰۳/۰۷/۰۱');
+  expect(tree.root.findByProps({'aria-label':'تاریخ پایان'}).props.value).toBe('۱۴۰۳/۰۷/۳۰');
+});
+
 it('shows the selected absolute preset when switching to the calendar tab', () => {
   open('2024-09-22T00:00:00 : 2024-10-22T00:00:00'); tab(0);
   const preset = presets().find(p => p.id === 'month')!;

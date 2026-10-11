@@ -16,10 +16,11 @@ export function Calendar({start, end, year, month, onNavigate, onSelect}: Props)
   const tabStop = active >= first && active <= last ? active : today >= first && today <= last ? today : first;
   // Only arrow keys request focus. Input edits and month controls never do.
   React.useEffect(() => {
-    if (!pendingFocus) return;
+    if (!pendingFocus || pendingFocus < first || pendingFocus > last) return;
+    setPendingFocus(undefined);
     const button = grid.current?.querySelector<HTMLButtonElement>(`button[data-date="${pendingFocus}"]`);
-    if (button) {setPendingFocus(undefined); button.focus();}
-  }, [pendingFocus, year, month]);
+    button?.focus();
+  }, [pendingFocus, first, last]);
   const key = (event: import('react').KeyboardEvent<HTMLButtonElement>, date: Jalali) => {
     if (event.key === 'Enter' || event.key === ' ') {event.preventDefault(); onSelect(date); return;}
     const delta = {ArrowLeft:1, ArrowRight:-1, ArrowUp:-7, ArrowDown:7}[event.key];
@@ -32,17 +33,18 @@ export function Calendar({start, end, year, month, onNavigate, onSelect}: Props)
     if (next[0] !== year || next[1] !== month) onNavigate(next[0], next[1]);
   };
   const offset = (new Date(epoch(j2g(year, month, 1))).getUTCDay() + 1) % 7;
+  const navigate = (y: number, m: number) => {setPendingFocus(undefined); onNavigate(y,m);};
   const move = (delta: number) => {
     const index = year * 12 + month - 1 + delta;
     const nextY = Math.floor(index / 12), nextM = index % 12 + 1;
-    if (nextY >= 1350 && nextY <= 1550) onNavigate(nextY, nextM);
+    if (nextY >= 1350 && nextY <= 1550) navigate(nextY, nextM);
   };
   const a = start && j2g(...start), b = end && j2g(...end);
   return <div className="sj-calendar">
     <div className="sj-nav">
       <button type="button" aria-label="ماه قبل" onClick={() => move(-1)} disabled={year === 1350 && month === 1}>‹</button>
-      <select aria-label="ماه" value={month} onChange={e => onNavigate(year, Number(e.target.value))}>{months.map((name, i) => <option key={name} value={i+1}>{name}</option>)}</select>
-      <select aria-label="سال" value={year} onChange={e => onNavigate(Number(e.target.value), month)}>{Array.from({length:201}, (_, i) => 1350+i).map(y => <option key={y} value={y}>{fa(y)}</option>)}</select>
+      <select aria-label="ماه" value={month} onChange={e => navigate(year, Number(e.target.value))}>{months.map((name, i) => <option key={name} value={i+1}>{name}</option>)}</select>
+      <select aria-label="سال" value={year} onChange={e => navigate(Number(e.target.value), month)}>{Array.from({length:201}, (_, i) => 1350+i).map(y => <option key={y} value={y}>{fa(y)}</option>)}</select>
       <button type="button" aria-label="ماه بعد" onClick={() => move(1)} disabled={year === 1550 && month === 12}>›</button>
     </div>
     <div className="sj-grid" ref={grid}>

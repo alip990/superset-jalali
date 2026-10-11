@@ -150,6 +150,26 @@ it('keeps the today ring visible on selected Friday and weekend range days', () 
   expect(colour(friday,'color',panel)).toBe('#ad2431');
 });
 
+it('clears an unrendered arrow focus request when the month select changes the view', () => {
+  let deferNavigation = true;
+  function View() {
+    const [view, setView] = React.useState([1403,7]);
+    return <Calendar year={view[0]} month={view[1]} onSelect={() => {}} onNavigate={(y,m) => {
+      if (!deferNavigation) setView([y,m]);
+    }}/>;
+  }
+  act(() => {ReactDOM.render(<View/>, container);});
+  const last = day([1403,7,30]); last.focus();
+  key(last, 'ArrowLeft'); // The requested 1403/08/01 is not rendered yet.
+  expect(document.activeElement).toBe(last);
+  deferNavigation = false;
+  const month = container.querySelector<HTMLSelectElement>('select[aria-label="ماه"]')!;
+  month.focus();
+  act(() => {month.value = '8'; Simulate.change(month);});
+  expect(day([1403,8,1])).toBeTruthy();
+  expect(document.activeElement).toBe(month);
+});
+
 it('month controls change the view without moving focus into the day grid', () => {
   calendar();
   const month = container.querySelector<HTMLSelectElement>('select[aria-label="ماه"]')!;

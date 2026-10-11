@@ -119,7 +119,7 @@ export function DateFilter(props: DateFilterControlProps) {
     if (next === tab) return;
     if (tab === 'calendar' && (from || to)) {
       try {setDraft(emit(parseJalali(from), parseJalali(to)));}
-      catch (err) {setError((err as Error).message); return;}
+      catch {setStart(undefined); setEnd(undefined); setFrom(''); setTo('');}
     }
     if (next === 'calendar') {
       const range = parse(draft, []);
