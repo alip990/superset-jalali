@@ -20,29 +20,40 @@ def _config():
     return current_app.config.get('JALALI', {}) if has_app_context() else {}
 
 
-def jalali_join(col: str, alias: str = '_jy') -> str:
+def _date_expression(col: str, tz) -> str:
+    tz = _config().get('sql_timezone') if tz is None else tz
+    if tz is None:
+        return f'({col})::date'
+    if not isinstance(tz, str) or not re.fullmatch(r'[A-Za-z]+(?:/[A-Za-z0-9_+\-]+){0,2}', tz):
+        raise ValueError(f'Invalid SQL timezone: {tz!r}')
+    return f"(({col}) AT TIME ZONE '{tz}')::date"
+
+
+def jalali_join(col: str, alias: str = '_jy', *, tz=None) -> str:
     col, alias = _identifier(col, dotted=True), _identifier(alias)
+    date = _date_expression(col, tz)
     config = _config()
     lo, hi = config.get('sql_min_year', 1390), config.get('sql_max_year', 1420)
     if type(lo) is not int or type(hi) is not int or not 1350 <= lo <= hi <= 1550:
         raise ValueError('SQL years must satisfy 1350 <= min <= max <= 1550')
     rows = ',\n  '.join(f"({y}, DATE '{NOWRUZ[y]}', DATE '{NOWRUZ[y+1]}')" for y in range(lo, hi + 1))
     return (f'LEFT JOIN (VALUES\n  {rows}\n) AS {alias}(year, start_date, end_date)\n'
-            f'  ON ({col})::date >= {alias}.start_date AND ({col})::date < {alias}.end_date')
+            f'  ON {date} >= {alias}.start_date AND {date} < {alias}.end_date')
 
 
-def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None) -> str:
+def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None, *, tz=None) -> str:
     col, alias = _identifier(col, dotted=True), _identifier(alias)
+    date = _date_expression(col, tz)
     _identifier(prefix, empty=True)
     digits = _config().get('sql_digits', 'latin') if digits is None else digits
     if digits not in ('latin', 'persian'):
         raise ValueError('sql_digits must be latin or persian')
     y = f'{alias}.year'
-    doy = f'(({col})::date - {alias}.start_date)'
+    doy = f'({date} - {alias}.start_date)'
     m = f'(CASE WHEN {doy} < 186 THEN {doy} / 31 + 1 ELSE ({doy} - 186) / 30 + 7 END)'
     d = f'(CASE WHEN {doy} < 186 THEN {doy} % 31 + 1 ELSE ({doy} - 186) % 30 + 1 END)'
     season = f'(({m} - 1) / 3 + 1)'
-    weekday = f'((EXTRACT(DOW FROM ({col})::date)::int + 1) % 7)'
+    weekday = f'((EXTRACT(DOW FROM {date})::int + 1) % 7)'
     def label(index, names):
         return '(CASE ' + index + ' ' + ' '.join(f"WHEN {i} THEN '{name}'" for i, name in enumerate(names, 1)) + ' END)'
     ym = f"({y}::text || '-' || lpad({m}::text, 2, '0'))"
@@ -54,7 +65,7 @@ def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits
         'month_name': month_name, 'month_label': f"({ym} || ' ' || {month_name})",
         'season': label(season, SEASONS), 'season_key': f"({y}::text || '-' || {season}::text || ' ' || {label(season, SEASONS)})",
         'weekday': label(f'({weekday} + 1)', WEEKDAYS), 'weekday_num': weekday,
-        'week_start': f'(({col})::date - {weekday})',
+        'week_start': f'({date} - {weekday})',
     }
     text_fields = {'date', 'month', 'month_label', 'season_key'}
     result = []

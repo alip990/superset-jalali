@@ -153,6 +153,38 @@ and arbitrary SQL are rejected. Each resulting identifier must fit PostgreSQL's
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
 
+### Timestamps with time zone
+
+For PostgreSQL **`timestamptz` columns only**, set `tz='Asia/Tehran'` to derive
+Jalali dates from Tehran local time rather than the database session timezone:
+
+```sql
+SELECT
+  t.*,
+  {{ jalali_columns('t.created_at', tz='Asia/Tehran') }}
+FROM your_table AS t
+{{ jalali_join('t.created_at', tz='Asia/Tehran') }}
+```
+
+**Both macros in a pair must use the same timezone.** The join chooses the
+Jalali year using the same local date that the columns use for days, months,
+weekdays and week starts. For example, `2025-03-20 21:00:00+00` is 1404/01/01
+in Tehran, but 1403/12/30 when cast in a UTC database session.
+
+Alternatively, set `JALALI['sql_timezone'] = 'Asia/Tehran'` as a shared default.
+A non-`None` `tz` argument overrides it; omitting `tz` or passing `None` uses
+the configuration. With both unset, the existing `(col)::date` SQL remains
+unchanged and follows the database session timezone for `timestamptz`.
+
+For **plain `timestamp` or `date` columns, do not set `tz` or `sql_timezone`**:
+`AT TIME ZONE` on a plain timestamp converts in the other direction, producing
+a `timestamptz` whose subsequent date cast depends on the session timezone.
+If your datasets mix column types, leave `sql_timezone` unset and pass explicit
+`tz` arguments only for `timestamptz` pairs.
+Timezone values accept letters followed by up to two slash-separated parts
+containing letters, digits, underscores, plus or minus signs (for example
+`UTC`, `Asia/Tehran`, `Etc/GMT+3`). PostgreSQL must recognize the chosen zone.
+
 ## Configuration
 
 ```python
@@ -161,6 +193,7 @@ JALALI = {
     "sql_min_year": 1390,
     "sql_max_year": 1420,
     "sql_digits": "latin",
+    "sql_timezone": None,
 }
 ```
 
@@ -170,6 +203,7 @@ JALALI = {
 | `sql_min_year` | `1390` | First year included in the inline SQL table. |
 | `sql_max_year` | `1420` | Last year, inclusive; must satisfy 1350 ≤ min ≤ max ≤ 1550. |
 | `sql_digits` | `"latin"` | `"latin"` or `"persian"` for text values; the macro's `digits` argument overrides it. |
+| `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 
 Narrowing the SQL year window reduces join work and can make queries much
 faster. The SQL settings do not restrict the picker's calendar.
@@ -206,8 +240,9 @@ route's catalogue to include the Jalali bundle if needed.
 - Superset time grains and time comparisons remain Gregorian. Use the Jalali
   columns for Jalali grouping, labels and comparisons.
 - Calendar presets are fixed dates. Rolling expressions use the server timezone.
-- Macros support PostgreSQL only in v0.1. Timestamp-to-date casts use the database
-  session timezone; values outside the SQL year window yield NULL.
+- Macros support PostgreSQL only in v0.1. Without a configured timezone,
+  `timestamptz`-to-date casts use the database session timezone; values outside
+  the SQL year window yield NULL.
 - An existing `filter.dateFilterControl` override takes precedence.
 - The bundle comes from the Superset origin. Default Superset Talisman allows
   the scoped inline styles; customized CSP must also allow them. Re-run the

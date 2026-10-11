@@ -70,3 +70,56 @@ def test_season_key_has_sortable_number_and_readable_name(month, expected, digit
     if digits == 'persian':
         expected = expected.translate(str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹'))
     assert actual == expected
+
+
+@pytest.mark.parametrize('tz,expression', [
+    (None, '(t.d)::date'),
+    ('Asia/Tehran', "((t.d) AT TIME ZONE 'Asia/Tehran')::date"),
+    ('UTC', "((t.d) AT TIME ZONE 'UTC')::date"),
+    ('Etc/GMT+3', "((t.d) AT TIME ZONE 'Etc/GMT+3')::date"),
+    ('America/Argentina/Buenos_Aires', "((t.d) AT TIME ZONE 'America/Argentina/Buenos_Aires')::date"),
+])
+def test_timezone_applies_to_every_source_date(tz, expression):
+    from sqlglot import exp
+    join = jalali_join('t.d', tz=tz)
+    columns = jalali_columns('t.d', tz=tz)
+    assert join.endswith(f'ON {expression} >= _jy.start_date AND {expression} < _jy.end_date')
+    assert f'({expression} - _jy.start_date)' in columns
+    assert f'EXTRACT(DOW FROM {expression})' in columns
+    assert f'THEN ({expression} - ' in columns
+    if tz is None:
+        assert 'AT TIME ZONE' not in join + columns
+    tree = sqlglot.parse_one(f'SELECT {columns} FROM events t {join}', read='postgres')
+    expected = sqlglot.parse_one(expression, read='postgres').sql(dialect='postgres')
+    casts = [node for node in tree.find_all(exp.Cast)
+             if node.args['to'].is_type(exp.DataType.Type.DATE)
+             and any(column.sql() == 't.d' for column in node.find_all(exp.Column))]
+    assert casts
+    assert all(node.sql(dialect='postgres') == expected for node in casts)
+
+
+@pytest.mark.parametrize('macro', [jalali_join, jalali_columns])
+def test_timezone_config_and_argument_precedence(macro):
+    app = Flask(__name__)
+    with app.app_context():
+        assert 'AT TIME ZONE' not in macro('t.d')
+        app.config['JALALI'] = {'sql_timezone': 'Asia/Tehran'}
+        assert "((t.d) AT TIME ZONE 'Asia/Tehran')::date" in macro('t.d')
+        assert macro('t.d', tz=None) == macro('t.d')
+        sql = macro('t.d', tz='UTC')
+        assert "AT TIME ZONE 'UTC'" in sql and 'Asia/Tehran' not in sql
+        app.config['JALALI']['sql_timezone'] = "Asia/Tehran'; drop"
+        assert "AT TIME ZONE 'UTC'" in macro('t.d', tz='UTC')
+        app.config['JALALI']['sql_timezone'] = None
+        assert 'AT TIME ZONE' not in macro('t.d')
+
+
+@pytest.mark.parametrize('bad', ["Asia/Tehran'; drop", 'x y', '', '../a', 'UTC\n',
+                                '/Asia/Tehran', 'A/B/C/D', 'Asia//Tehran', 1, True])
+@pytest.mark.parametrize('macro', [jalali_join, jalali_columns])
+def test_invalid_timezone_argument_and_config(bad, macro):
+    with pytest.raises(ValueError): macro('t.d', tz=bad)
+    app = Flask(__name__)
+    app.config['JALALI'] = {'sql_timezone': bad}
+    with app.app_context():
+        with pytest.raises(ValueError): macro('t.d')
