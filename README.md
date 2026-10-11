@@ -25,6 +25,10 @@ from superset_jalali import init_jalali
 init_jalali(globals())
 ```
 
+**Call `init_jalali(globals())` as the LAST line of `superset_config.py`.**
+Overwriting `BLUEPRINTS` or `FEATURE_FLAGS` afterwards can leave dynamic plugins
+enabled without their discovery route, causing every dashboard to hang.
+
 Restart Superset. The package must be installed in the same Python environment
 as Superset, including workers that render virtual datasets. Before the first
 PyPI publication, install the built wheel instead of the version above.
@@ -212,6 +216,9 @@ faster. The SQL settings do not restrict the picker's calendar.
 `init_jalali(globals(), macros=False)` adds only the picker. Repeated calls are
 safe; existing blueprints, feature flags and Jinja helpers are preserved, except
 that requesting the picker sets `DYNAMIC_PLUGINS=True`.
+The picker also chains any existing `FLASK_APP_MUTATOR`, calling it first and
+then logging an error at startup if dynamic plugins are enabled without their
+discovery route; the check does not raise or repair the configuration.
 
 ### Manual equivalent
 
@@ -229,6 +236,7 @@ JINJA_CONTEXT_ADDONS = {**JINJA_ADDONS, **globals().get("JINJA_CONTEXT_ADDONS", 
 ```
 
 Always register the blueprint when enabling dynamic plugins on Superset 6.x.
+The manual configuration above does not install the startup check.
 An already registered discovery route is preserved and logged; configure that
 route's catalogue to include the Jalali bundle if needed.
 
@@ -252,7 +260,7 @@ route's catalogue to include the Jalali bundle if needed.
 
 | Symptom | Check |
 | --- | --- |
-| Dashboard spins forever | Ensure the blueprint is registered and `/dynamic-plugins/api/read` returns HTTP 200 with `result`; inspect proxy/auth middleware errors. Do not enable the flag without the blueprint. |
+| All dashboards spin forever | `DYNAMIC_PLUGINS=True` without `/dynamic-plugins/api/read`, often because `BLUEPRINTS` or `FEATURE_FLAGS` was overwritten after initialization. Call `init_jalali(globals())` as the last line of `superset_config.py` and restart; check the startup ERROR log and ensure the route returns HTTP 200 with `result`. Also inspect proxy/auth middleware errors. |
 | Stock picker appears | Check `/superset-jalali/health`, console bundle-loading errors, CSP, the kill switch, and any existing registry override. |
 | Charts are not filtered | Check for a temporal date column, its No filter time pill, and native filter chart scope. |
 | Macros remain literal or are unavailable | Explicitly enable `ENABLE_TEMPLATE_PROCESSING`, call `init_jalali` after your settings, and install the package in all workers. |

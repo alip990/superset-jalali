@@ -1,5 +1,6 @@
 import importlib
 import json
+import logging
 from flask import Flask
 from flask_login import LoginManager, UserMixin
 import pytest
@@ -76,6 +77,80 @@ def test_init_idempotent(caplog):
     init_jalali(config, datefilter=False, macros=False)
     assert 'FEATURE_FLAGS' not in config
     assert 'BLUEPRINTS' not in config
+    assert 'FLASK_APP_MUTATOR' not in config
+
+
+def test_mutator_chaining_is_idempotent(caplog):
+    calls = []
+    def existing(app):
+        calls.append(app)
+        app.config['FEATURE_FLAGS'] = {'DYNAMIC_PLUGINS': True}
+    config = {'FLASK_APP_MUTATOR': existing}
+    init_jalali(config, macros=False)
+    mutator = config['FLASK_APP_MUTATOR']
+    assert mutator is not existing
+    init_jalali(config, macros=False)
+    assert config['FLASK_APP_MUTATOR'] is mutator
+    app = Flask(__name__)
+    app.config['FEATURE_FLAGS'] = {'DYNAMIC_PLUGINS': False}
+    with caplog.at_level(logging.ERROR):
+        mutator(app)
+    assert calls == [app]
+    assert len(caplog.records) == 1  # The check runs after the existing mutator.
+
+
+def test_mutator_logs_overwritten_blueprints(caplog):
+    config = {}
+    init_jalali(config, macros=False)
+    config['BLUEPRINTS'] = []
+    config['FEATURE_FLAGS'] = {'DYNAMIC_PLUGINS': True}
+    app = Flask(__name__)
+    app.config.update(config)
+    with caplog.at_level(logging.ERROR):
+        config['FLASK_APP_MUTATOR'](app)
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == logging.ERROR
+    message = record.getMessage()
+    for text in ('DYNAMIC_PLUGINS', '/dynamic-plugins/api/read', 'dashboards', 'hang',
+                 'init_jalali(globals())', 'end', 'superset_config.py'):
+        assert text in message
+
+
+def test_mutator_accepts_route_added_by_existing_mutator(caplog):
+    def existing(app):
+        app.add_url_rule('/dynamic-plugins/api/read', 'existing', lambda: 'existing')
+    config = {'FLASK_APP_MUTATOR': existing}
+    init_jalali(config, macros=False)
+    app = Flask(__name__)
+    app.config.update(config)
+    with caplog.at_level(logging.ERROR):
+        config['FLASK_APP_MUTATOR'](app)
+    assert not caplog.records
+
+
+@pytest.mark.parametrize('flags', [{}, {'DYNAMIC_PLUGINS': False}])
+def test_mutator_ignores_disabled_plugins(flags, caplog):
+    config = {}
+    init_jalali(config, macros=False)
+    app = Flask(__name__)
+    app.config['FEATURE_FLAGS'] = flags
+    with caplog.at_level(logging.ERROR):
+        config['FLASK_APP_MUTATOR'](app)
+    assert not caplog.records
+
+
+def test_mutator_check_never_raises(monkeypatch, caplog):
+    config = {}
+    init_jalali(config, macros=False)
+    app = Flask(__name__)
+    app.config.update(config)
+    def fail(): raise RuntimeError('test')
+    monkeypatch.setattr(app.url_map, 'iter_rules', fail)
+    with caplog.at_level(logging.ERROR):
+        config['FLASK_APP_MUTATOR'](app)
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelno == logging.ERROR
 
 
 def test_init_preserves_user_helpers():
