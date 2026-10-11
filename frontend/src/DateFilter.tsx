@@ -2,15 +2,17 @@ import { React, ReactDOM, DateFilterControlProps } from './shims';
 import { Calendar } from './Calendar';
 import { format, g2j, j2g, Jalali, parseJalali } from './jalali';
 import { emit, label, parse, Preset, presets, tehranToday } from './timeRange';
+import { isDarkTheme, luminance } from './theme';
 
 const css = `
-.sj-trigger{width:100%;min-height:32px;border:1px solid #b7c2cb;border-radius:4px;background:#fff;color:#253746;padding:5px 10px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;cursor:pointer}
-.sj-popover{position:fixed;z-index:1100;width:380px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;background:#fff;color:#253746;border:1px solid #d4dce2;border-radius:8px;box-shadow:0 8px 32px #15293530;font:14px/1.6 Tahoma,Arial,sans-serif;padding:16px;box-sizing:border-box}
-.sj-popover *{box-sizing:border-box}.sj-popover button,.sj-popover input,.sj-popover select{font:inherit}.sj-popover button{cursor:pointer;border:1px solid #d4dce2;background:white;color:inherit;border-radius:4px;padding:5px 9px}.sj-popover button:disabled{opacity:.4;cursor:default}
-.sj-popover button:hover{background:#eef5f7}.sj-popover button:focus-visible,.sj-popover input:focus-visible,.sj-popover select:focus-visible{outline:2px solid #167c99;outline-offset:2px}.sj-popover input,.sj-popover select{border:1px solid #b7c2cb;border-radius:4px;padding:5px;background:white;color:inherit;min-width:0}
-.sj-tabs{display:flex;gap:6px;border-bottom:1px solid #e4e9ed;padding-bottom:12px;margin-bottom:12px}.sj-popover .sj-active,.sj-popover .sj-primary{background:#136c87;color:white;border-color:#136c87}.sj-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sj-inputs{display:flex;gap:12px;margin:12px 0}.sj-inputs label{flex:1;min-width:0}.sj-inputs input{width:100%;text-align:center;direction:ltr}
-.sj-nav{display:flex;gap:6px;justify-content:space-between;margin:12px 0}.sj-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}.sj-grid button{border:0;padding:6px 0}.sj-weekday{font-size:10px;color:#526573;white-space:nowrap;padding:4px 0}.sj-grid .sj-selected{background:#136c87;color:#fff}.sj-grid .sj-between{background:#e2f0f4;color:#136c87}.sj-footer{display:flex;gap:7px;margin-top:16px;padding-top:12px;border-top:1px solid #e4e9ed}.sj-footer .sj-clear{margin-left:auto}.sj-error{color:#ad2431;margin-top:8px}.sj-hint{color:#526573;font-size:12px;margin:8px 0}.sj-raw{width:100%;direction:ltr;text-align:left}
-.sj-grid .sj-weekend{color:#ad2431}.sj-grid .sj-selected.sj-weekend{color:#fff;background:#943848}.sj-grid .sj-today{box-shadow:inset 0 0 0 2px #b77713}
+.sj-trigger{width:100%;min-height:32px;border:1px solid currentColor;border-color:color-mix(in srgb,currentColor 60%,transparent);border-radius:4px;background:transparent;color:inherit;padding:5px 10px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;font-family:inherit;cursor:pointer}
+.sj-popover{--sj-bg:#ffffff;--sj-fg:#253746;--sj-muted:#526573;--sj-border:#d4dce2;--sj-accent:#136c87;--sj-accent-fg:#ffffff;--sj-range:#e2f0f4;--sj-weekend:#ad2431;--sj-weekend-selected:#943848;position:fixed;z-index:1100;width:380px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;background:var(--sj-bg);color:var(--sj-fg);border:1px solid var(--sj-border);border-radius:8px;box-shadow:0 8px 32px #15293530;font-size:14px;line-height:1.6;font-family:inherit;padding:16px;box-sizing:border-box}
+.sj-popover.sj-dark{--sj-bg:#1f2933;--sj-fg:#edf2f7;--sj-muted:#aab8c5;--sj-border:#526573;--sj-accent:#74cde6;--sj-accent-fg:#152935;--sj-range:#254554;--sj-weekend:#ff9ca8;--sj-weekend-selected:#ff9ca8;color-scheme:dark}
+.sj-popover *{box-sizing:border-box}.sj-popover button,.sj-popover input,.sj-popover select{font:inherit}.sj-popover button{cursor:pointer;border:1px solid var(--sj-border);background:var(--sj-bg);color:inherit;border-radius:4px;padding:5px 9px}.sj-popover button:disabled{opacity:.4;cursor:default}
+.sj-popover button:hover{background:var(--sj-range)}.sj-popover button:focus-visible,.sj-popover input:focus-visible,.sj-popover select:focus-visible{outline:2px solid var(--sj-accent);outline-offset:2px}.sj-popover input,.sj-popover select{border:1px solid var(--sj-border);border-radius:4px;padding:5px;background:var(--sj-bg);color:inherit;min-width:0}.sj-popover input::placeholder{color:var(--sj-muted);opacity:1}
+.sj-tabs{display:flex;gap:6px;border-bottom:1px solid var(--sj-border);padding-bottom:12px;margin-bottom:12px}.sj-popover button.sj-active,.sj-popover button.sj-primary{background:var(--sj-accent);color:var(--sj-accent-fg);border-color:var(--sj-accent)}.sj-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sj-inputs{display:flex;gap:12px;margin:12px 0}.sj-inputs label{flex:1;min-width:0}.sj-inputs input{width:100%;text-align:center;direction:ltr}
+.sj-nav{display:flex;gap:6px;justify-content:space-between;margin:12px 0}.sj-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}.sj-grid button{border:0;padding:6px 0}.sj-weekday{font-size:10px;color:var(--sj-muted);white-space:nowrap;padding:4px 0}.sj-grid button.sj-selected{background:var(--sj-accent);color:var(--sj-accent-fg)}.sj-grid button.sj-between{background:var(--sj-range);color:var(--sj-accent)}.sj-footer{display:flex;gap:7px;margin-top:16px;padding-top:12px;border-top:1px solid var(--sj-border)}.sj-footer .sj-clear{margin-left:auto}.sj-error{color:var(--sj-weekend);margin-top:8px}.sj-hint{color:var(--sj-muted);font-size:12px;margin:8px 0}.sj-raw{width:100%;direction:ltr;text-align:left}
+.sj-grid .sj-weekend{color:var(--sj-weekend)}.sj-grid button.sj-between.sj-weekend{color:var(--sj-weekend)}.sj-grid button.sj-selected.sj-weekend{color:var(--sj-accent-fg);background:var(--sj-weekend-selected)}.sj-grid .sj-today{box-shadow:inset 0 0 0 2px currentColor}
 `;
 function styleOnce() {
   if (!document.getElementById('sj-style')) {
@@ -32,6 +34,7 @@ export function DateFilter(props: DateFilterControlProps) {
   const [view, setView] = React.useState<[number,number]>(() => {const [y,m] = g2j(tehranToday()); return [y,m];});
   const [error, setError] = React.useState('');
   const [position, setPosition] = React.useState({top:0, left:0});
+  const [appearance, setAppearance] = React.useState({dark:false, fontFamily:'inherit'});
   const trigger = React.useRef<HTMLButtonElement>(null), popover = React.useRef<HTMLDivElement>(null);
   const overflow = React.useRef(isOverflowingFilterBar); overflow.current = isOverflowingFilterBar;
   const callbacks = React.useRef({onOpenPopover, onClosePopover});
@@ -83,6 +86,15 @@ export function DateFilter(props: DateFilterControlProps) {
   };
   const show = () => {
     if (open) {close(); return;}
+    if (trigger.current) {
+      const host = window.getComputedStyle(trigger.current);
+      let background = 'transparent';
+      for (let element: HTMLElement | null = trigger.current; element; element = element.parentElement) {
+        const colour = window.getComputedStyle(element).backgroundColor;
+        if (luminance(colour) !== undefined) {background = colour; break;}
+      }
+      setAppearance({dark:isDarkTheme(background,host.color), fontFamily:host.fontFamily || 'inherit'});
+    }
     const next = presets(); setOptions(next);
     const current = parse(value, next);
     setDraft(value || 'No filter'); setError('');
@@ -128,7 +140,7 @@ export function DateFilter(props: DateFilterControlProps) {
   };
   return <>
     <button ref={trigger} type="button" className="sj-trigger" dir="rtl" title={label(value)} aria-label={name || 'بازهٔ زمانی'} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{label(value)} ▾</button>
-    {open && ReactDOM.createPortal(<div ref={popover} className="sj-popover" dir="rtl" role="dialog" aria-modal="true" aria-label="انتخاب بازهٔ زمانی جلالی" onKeyDown={key} style={isOverflowingFilterBar ? {top:'50%',left:'50%',transform:'translate(-50%, -50%)'} : position}>
+    {open && ReactDOM.createPortal(<div ref={popover} className={'sj-popover' + (appearance.dark ? ' sj-dark' : '')} dir="rtl" role="dialog" aria-modal="true" aria-label="انتخاب بازهٔ زمانی جلالی" onKeyDown={key} style={{fontFamily:appearance.fontFamily, ...(isOverflowingFilterBar ? {top:'50%',left:'50%',transform:'translate(-50%, -50%)'} : position)}}>
       <div className="sj-tabs" role="tablist" aria-label="روش انتخاب بازه">
         {([['presets','بازه‌های آماده'],['calendar','تقویم'],['advanced','پیشرفته']] as const).map(([id, title]) => <button type="button" key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'sj-active' : ''} onClick={() => switchTab(id)}>{title}</button>)}
       </div>

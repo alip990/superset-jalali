@@ -47,6 +47,26 @@ function filter(overflow = false, onKeyDown?: React.KeyboardEventHandler<HTMLDiv
   act(() => {trigger.click();});
   return document.querySelector<HTMLDivElement>('.sj-popover')!;
 }
+// jsdom does not resolve var() backgrounds. Read the matching CSS declarations
+// and the rendered panel's variables to check the actual palette and state rules.
+function colour(node: HTMLElement, property: 'color'|'background', panel: HTMLElement): string {
+  let value = '';
+  const sheet = (document.getElementById('sj-style') as HTMLStyleElement).sheet!;
+  for (const rule of Array.from(sheet.cssRules) as CSSStyleRule[]) {
+    if (node.matches(rule.selectorText) && rule.style.getPropertyValue(property)) value = rule.style.getPropertyValue(property);
+  }
+  if (!value || value === 'inherit') return colour(node.parentElement!,property,panel);
+  return value.replace(/var\((--[\w-]+)\)/g, (_, token) => getComputedStyle(panel).getPropertyValue(token).trim());
+}
+function contrast(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const channels = hex.replace('#','').match(/../g)!.map(part => parseInt(part,16) / 255)
+      .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const x = luminance(a), y = luminance(b);
+  return (Math.max(x,y) + 0.05) / (Math.min(x,y) + 0.05);
+}
 
 it('marks Tehran today with a ring even when selected and colours Fridays', () => {
   calendar(1403,7,[1403,7,6]);
@@ -122,12 +142,12 @@ it('keeps the today ring visible on selected Friday and weekend range days', () 
   act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
   const today = panel.querySelector<HTMLButtonElement>('button[aria-current="date"]')!;
   act(() => {today.click();});
-  expect(getComputedStyle(today).boxShadow).toBe('inset 0 0 0 2px #b77713');
-  expect(getComputedStyle(today).backgroundColor).toBe('rgb(148, 56, 72)');
+  expect(getComputedStyle(today).boxShadow).toBe('inset 0 0 0 2px currentColor');
+  expect(colour(today,'background',panel)).toBe('#943848');
   act(() => {panel.querySelector<HTMLButtonElement>('button[aria-label="۱۴۰۳/۰۷/۲۰"]')!.click();});
   const friday = panel.querySelector<HTMLButtonElement>('button[aria-label="۱۴۰۳/۰۷/۱۳"]')!;
   expect(friday.classList.contains('sj-between')).toBe(true);
-  expect(getComputedStyle(friday).color).toBe('rgb(173, 36, 49)');
+  expect(colour(friday,'color',panel)).toBe('#ad2431');
 });
 
 it('month controls change the view without moving focus into the day grid', () => {
@@ -222,4 +242,65 @@ it('leaves text-input keys available for editing and still closes on outside mou
   act(() => {document.body.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));});
   expect(document.querySelector('.sj-popover')).toBeNull();
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it('uses the nearest opaque host background and copies the computed trigger font on every open', () => {
+  container.style.backgroundColor = 'rgb(31, 41, 51)';
+  act(() => {ReactDOM.render(<div style={{backgroundColor:'transparent'}}><DateFilter name="Time" onChange={() => {}}/></div>, container);});
+  const trigger = container.querySelector<HTMLButtonElement>('.sj-trigger')!;
+  trigger.style.fontFamily = 'Vazirmatn, sans-serif';
+  act(() => {trigger.click();});
+  let panel = document.querySelector<HTMLDivElement>('.sj-popover')!;
+  expect(panel.classList.contains('sj-dark')).toBe(true);
+  expect(panel.style.fontFamily).toBe(getComputedStyle(trigger).fontFamily);
+  expect(panel.style.fontFamily).toContain('Vazirmatn');
+  key(panel, 'Escape');
+  container.style.backgroundColor = 'rgb(255, 255, 255)';
+  trigger.style.fontFamily = 'Arial, sans-serif';
+  act(() => {trigger.click();});
+  panel = document.querySelector<HTMLDivElement>('.sj-popover')!;
+  expect(panel.classList.contains('sj-dark')).toBe(false);
+  expect(panel.style.fontFamily).toBe(getComputedStyle(trigger).fontFamily);
+  expect(panel.style.fontFamily).toContain('Arial');
+});
+
+it('uses the nearest host surface instead of a darker distant ancestor', () => {
+  container.style.backgroundColor = 'rgb(31, 41, 51)';
+  act(() => {ReactDOM.render(<div style={{backgroundColor:'rgb(255, 255, 255)'}}><DateFilter name="Time" onChange={() => {}}/></div>, container);});
+  act(() => {container.querySelector<HTMLButtonElement>('.sj-trigger')!.click();});
+  expect(document.querySelector('.sj-popover')!.classList.contains('sj-dark')).toBe(false);
+});
+
+it('leaves trigger background and typography inherited from the host', () => {
+  filter();
+  const style = getComputedStyle(container.querySelector('.sj-trigger')!);
+  expect(style.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+  expect(style.color).toBe('inherit'); // jsdom preserves this keyword rather than computing inheritance.
+  expect(style.fontFamily).toBe('inherit');
+  expect(getComputedStyle(document.querySelector('.sj-popover')!).fontFamily).not.toContain('Tahoma');
+});
+
+it.each([false,true])('keeps palette text and today/selected/weekend states readable, dark=%s', dark => {
+  container.style.backgroundColor = dark ? 'rgb(31,41,51)' : 'rgb(255,255,255)';
+  const panel = filter();
+  expect(panel.classList.contains('sj-dark')).toBe(dark);
+  const token = (name: string) => getComputedStyle(panel).getPropertyValue('--sj-'+name).trim();
+  for (const [foreground,background] of [
+    ['fg','bg'], ['muted','bg'], ['fg','range'], ['accent','range'],
+    ['weekend','bg'], ['weekend','range'], ['accent-fg','accent'],
+    ['accent-fg','weekend-selected'],
+  ]) {
+    expect(contrast(token(foreground),token(background)),`${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+  }
+  act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
+  const today = panel.querySelector<HTMLButtonElement>('button[aria-current="date"]')!;
+  expect(getComputedStyle(today).boxShadow).toBe('inset 0 0 0 2px currentColor');
+  expect(contrast(colour(today,'color',panel),colour(today,'background',panel))).toBeGreaterThanOrEqual(4.5);
+  act(() => {today.click();});
+  expect(contrast(colour(today,'color',panel),colour(today,'background',panel))).toBeGreaterThanOrEqual(4.5);
+  act(() => {panel.querySelector<HTMLButtonElement>('button[aria-label="۱۴۰۳/۰۷/۲۰"]')!.click();});
+  for (const date of ['۱۴۰۳/۰۷/۱۲','۱۴۰۳/۰۷/۱۳']) {
+    const day = panel.querySelector<HTMLButtonElement>(`button[aria-label="${date}"]`)!;
+    expect(contrast(colour(day,'color',panel),colour(day,'background',panel))).toBeGreaterThanOrEqual(4.5);
+  }
 });

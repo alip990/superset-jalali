@@ -16,6 +16,7 @@ beforeEach(async () => {
     '__superset__/react-dom':{createPortal:(children: unknown) => children},
     '__superset__/@superset-ui/core':{getExtensionsRegistry: () => ({})},
     innerWidth:1000, innerHeight:600, addEventListener:vi.fn(), removeEventListener:vi.fn(),
+    getComputedStyle:() => ({fontFamily:'Vazirmatn', color:'rgb(37, 55, 70)', backgroundColor:'rgba(0, 0, 0, 0)'}),
   });
   vi.stubGlobal('document', {getElementById:() => ({}), body:{}, addEventListener:vi.fn(), removeEventListener:vi.fn()});
   vi.stubGlobal('ResizeObserver', class {
