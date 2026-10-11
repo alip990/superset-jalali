@@ -12,6 +12,10 @@ license = "Apache-2.0"
 dependencies = ["Flask>=2.2,<4", "Flask-Login>=0.6,<1"]
 classifiers = ["Programming Language :: Python :: 3", "Framework :: Flask"]
 
+[project.urls]
+Repository = "https://github.com/alip990/superset-jalali"
+Issues = "https://github.com/alip990/superset-jalali/issues"
+
 [project.optional-dependencies]
 dev = ["pytest>=8", "jdatetime==6.1.0", "persiantools==4.0.0", "sqlglot>=25", "build>=1.2"]
 

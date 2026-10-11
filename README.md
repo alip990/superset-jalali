@@ -1,6 +1,6 @@
 # superset-jalali
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](https://github.com/alip990/superset-jalali/actions/workflows/ci.yml/badge.svg)](https://github.com/alip990/superset-jalali/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/superset-jalali)](https://pypi.org/project/superset-jalali/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -231,8 +231,6 @@ gzipped or if React/ReactDOM/antd are bundled. Built static files are gitignored
 and included in both distributions. Build the frontend **before** Python
 packaging. CI checks that the wheel contains its manifest's JS file.
 
-For your public GitHub repository, update the CI badge URL to its absolute
-repository URL if your Markdown host does not resolve the relative badge path.
 Configure a PyPI Trusted Publisher for package `superset-jalali`, your GitHub
 owner/repository, workflow `release.yml`, and environment `pypi`; create that
 GitHub environment. After completing the manual checklist, update the version
