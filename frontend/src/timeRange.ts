@@ -1,4 +1,4 @@
-import { addDays, format, g2j, j2g, Jalali, NOWRUZ_SENTINEL } from './jalali';
+import { addDays, epoch, format, g2j, j2g, Jalali, NOWRUZ_SENTINEL } from './jalali';
 export interface Preset { id: string; label: string; value: string }
 export type Parsed = {kind:'none'} | {kind:'preset'; preset:Preset} | {kind:'range'; start:Jalali; end:Jalali} | {kind:'raw'; value:string};
 const tomorrow = 'DATEADD(DATETIME("today"), 1, day)';
@@ -9,16 +9,22 @@ export function tehranToday(now = new Date()): string {
   return `${field('year')}-${field('month')}-${field('day')}`;
 }
 export function presets(now = new Date()): Preset[] {
-  const [y, m] = g2j(tehranToday(now));
+  const today = tehranToday(now), [y, m] = g2j(today);
   const prevY = m === 1 ? y - 1 : y;
   const prevM = m === 1 ? 12 : m - 1;
   const boundary = (year: number) => year === 1551 ? NOWRUZ_SENTINEL : j2g(year, 1, 1);
+  const weekStart = addDays(today, -((new Date(epoch(today)).getUTCDay() + 1) % 7));
+  const seasonM = Math.floor((m - 1) / 3) * 3 + 1;
+  const seasonStart = j2g(y, seasonM, 1);
   return [
     {id:'today', label:'امروز', value:`today : ${tomorrow}`},
     {id:'yesterday', label:'دیروز', value:'DATEADD(DATETIME("today"), -1, day) : today'},
     ...[7,30,90].map(n => ({id:String(n), label:formatNumber(n)+' روز اخیر', value:`DATEADD(DATETIME("today"), ${1-n}, day) : ${tomorrow}`})),
+    {id:'week', label:'این هفته', value:absolute(weekStart, addDays(weekStart,7))},
     {id:'month', label:'این ماه', value:absolute(j2g(y,m,1), m === 12 ? boundary(y+1) : j2g(y,m+1,1))},
     {id:'previous-month', label:'ماه گذشته', value:absolute(j2g(prevY,prevM,1), j2g(y,m,1))},
+    {id:'season', label:'این فصل', value:absolute(seasonStart, seasonM === 10 ? boundary(y+1) : j2g(y,seasonM+3,1))},
+    {id:'previous-season', label:'فصل گذشته', value:absolute(seasonM === 1 ? j2g(y-1,10,1) : j2g(y,seasonM-3,1), seasonStart)},
     {id:'year', label:'امسال', value:absolute(boundary(y), boundary(y+1))},
     {id:'previous-year', label:'سال گذشته', value:absolute(boundary(y-1), boundary(y))},
   ];
