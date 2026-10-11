@@ -52,7 +52,7 @@ def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits
         'year': y, 'month_num': m, 'day': d, 'date': text_date,
         'date_int': f'({y} * 10000 + {m} * 100 + {d})', 'month': ym,
         'month_name': month_name, 'month_label': f"({ym} || ' ' || {month_name})",
-        'season': label(season, SEASONS), 'season_key': f"({y}::text || '-' || {season}::text)",
+        'season': label(season, SEASONS), 'season_key': f"({y}::text || '-' || {season}::text || ' ' || {label(season, SEASONS)})",
         'weekday': label(f'({weekday} + 1)', WEEKDAYS), 'weekday_num': weekday,
         'week_start': f'(({col})::date - {weekday})',
     }

@@ -44,3 +44,29 @@ def test_each_column_is_null_on_unmatched_year():
         assert case.args['ifs'][0].this.sql(dialect='postgres') == '_jy.year IS NOT NULL'
     with pytest.raises(ValueError): jalali_columns('x', prefix='a' * 60)
     with pytest.raises(ValueError): jalali_join('x', alias='a' * 64)
+
+
+@pytest.mark.parametrize('month,expected', [(1, '1403-1 بهار'), (4, '1403-2 تابستان'), (7, '1403-3 پاییز'), (10, '1403-4 زمستان')])
+@pytest.mark.parametrize('digits', ['latin', 'persian'])
+def test_season_key_has_sortable_number_and_readable_name(month, expected, digits):
+    import sqlite3
+    from sqlglot import exp
+    from datetime import date
+    from superset_jalali.calendar import j2g
+    doy = (j2g(1403, month, 1) - date(2024, 3, 20)).days
+    tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d', digits=digits), read='postgres')
+    column = next(column for column in tree.expressions if column.alias == 'jalali_season_key')
+    # Supply the joined year and elapsed days; execute the emitted CASE/concatenation.
+    def values(node):
+        if isinstance(node, exp.Column) and node.sql() == '_jy.year':
+            return exp.Literal.number(1403)
+        if isinstance(node, exp.Sub) and node.right.sql() == '_jy.start_date':
+            return exp.Literal.number(doy)
+        return node
+    sql = exp.select(column.transform(values)).sql(dialect='sqlite')
+    with sqlite3.connect(':memory:') as connection:
+        connection.create_function('TRANSLATE', 3, lambda text, a, b: text.translate(str.maketrans(a, b)))
+        actual = connection.execute(sql).fetchone()[0]
+    if digits == 'persian':
+        expected = expected.translate(str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹'))
+    assert actual == expected

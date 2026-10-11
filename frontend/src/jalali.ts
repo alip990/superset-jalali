@@ -4,7 +4,7 @@ const DAY = 86400000;
 const years = Object.keys(NOWRUZ).map(Number);
 const starts = years.map(y => Date.parse(NOWRUZ[y] + 'T00:00:00Z'));
 export const months = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-export const weekdays = ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه'];
+export const weekdays = ['شنبه','یک‌شنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنج‌شنبه','جمعه'];
 export const fa = (value: string | number) => String(value).replace(/[0-9]/g, c => '۰۱۲۳۴۵۶۷۸۹'[Number(c)]);
 export const latin = (value: string) => value.replace(/[۰-۹٠-٩]/g, c => String(c.charCodeAt(0) - (c >= '۰' ? 1776 : 1632)));
 export function epoch(iso: string): number {
