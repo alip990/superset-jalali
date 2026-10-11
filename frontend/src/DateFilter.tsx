@@ -138,8 +138,9 @@ export function DateFilter(props: DateFilterControlProps) {
       onChange(result); close();
     } catch (err) {setError((err as Error).message);}
   };
+  const triggerLabel = label(value);
   return <>
-    <button ref={trigger} type="button" className="sj-trigger" dir="rtl" title={label(value)} aria-label={name || 'بازهٔ زمانی'} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{label(value)} ▾</button>
+    <button ref={trigger} type="button" className="sj-trigger" dir="rtl" title={triggerLabel} aria-label={triggerLabel ? `بازهٔ زمانی: ${triggerLabel}` : 'بازهٔ زمانی'} data-filter-name={name} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{triggerLabel} ▾</button>
     {open && ReactDOM.createPortal(<div ref={popover} className={'sj-popover' + (appearance.dark ? ' sj-dark' : '')} dir="rtl" role="dialog" aria-modal="true" aria-label="انتخاب بازهٔ زمانی جلالی" onKeyDown={key} style={{fontFamily:appearance.fontFamily, ...(isOverflowingFilterBar ? {top:'50%',left:'50%',transform:'translate(-50%, -50%)'} : position)}}>
       <div className="sj-tabs" role="tablist" aria-label="روش انتخاب بازه">
         {([['presets','بازه‌های آماده'],['calendar','تقویم'],['advanced','پیشرفته']] as const).map(([id, title]) => <button type="button" key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'sj-active' : ''} onClick={() => switchTab(id)}>{title}</button>)}

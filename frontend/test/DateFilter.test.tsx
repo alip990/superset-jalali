@@ -38,6 +38,20 @@ function open(value = 'No filter') {
 const tab = (index: number) => act(() => tree.root.findAllByProps({role:'tab'})[index].props.onClick());
 const apply = () => act(() => tree.root.findByProps({className:'sj-primary'}).props.onClick());
 
+it.each([
+  ['2024-09-22T00:00:00 : 2024-10-22T00:00:00', '۱۴۰۳/۰۷/۰۱ تا ۱۴۰۳/۰۷/۳۰'],
+  ['today : DATEADD(DATETIME("today"), 1, day)', 'امروز'],
+  ['No filter', 'بدون فیلتر'],
+])('names the trigger using the selected range for %s', (value, text) => {
+  const name = 'NATIVE_FILTER-abc123';
+  act(() => {tree = create(<DateFilter name={name} value={value} onChange={vi.fn()}/>);});
+  const trigger = tree.root.findByProps({className:'sj-trigger'});
+  expect(trigger.props['aria-label']).toBe(`بازهٔ زمانی: ${text}`);
+  expect(trigger.props['aria-label']).not.toContain(name);
+  expect(trigger.props['data-filter-name']).toBe(name);
+  expect(trigger.props.title).toBe(text);
+});
+
 it('keeps a calendar selection when switching to the raw expression tab', () => {
   const {onChange} = open(); tab(1);
   act(() => tree.root.findByType(Calendar).props.onSelect([1403,7,1]));
