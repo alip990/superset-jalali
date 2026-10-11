@@ -41,7 +41,17 @@ Superset. This plugin relies on internal APIs; other versions are not supported.
 Open a dashboard's Time range native filter to choose presets, select a Jalali
 start and end day, type dates with Persian/Arabic/Latin digits, or enter a raw
 Superset expression in «پیشرفته». Month and year navigation cover 1350–1550.
-The trigger shows «بدون فیلتر», a preset name, or a Jalali range.
+The trigger shows «بدون فیلتر», a preset name, or a Jalali range. Today in
+`Asia/Tehran` has a visible ring; Fridays use the weekend colour.
+
+The day grid has one Tab stop. In RTL order, **Left** moves to the next day,
+**Right** to the previous day, and **Up/Down** move seven days. Crossing a month
+changes the visible month; **Enter/Space** selects the focused day. Arrow keys
+move focus in the grid; editing the از / تا inputs keeps focus in the input.
+
+The popover normally anchors to the trigger. In Superset's overflowing filter
+bar it opens as a centred fixed panel, with width and height limited to the
+viewport and scrolling for smaller screens.
 
 The UI end date is inclusive. Selecting 1403/07/01–1403/07/30 emits the standard
 half-open Gregorian range:
@@ -77,8 +87,11 @@ DATEADD(DATETIME("today"), -6, day) : DATEADD(DATETIME("today"), 1, day)
 Rolling presets include today and remain current when saved as dashboard
 defaults. `today` follows Superset's server timezone; recommend `TZ=Asia/Tehran`.
 
-«این ماه», «ماه گذشته», «امسال», and «سال گذشته» are calculated using the
-current date in `Asia/Tehran`, then saved as **fixed absolute dates**. They do not
+«این هفته», «این ماه», «ماه گذشته», «این فصل», «فصل گذشته», «امسال», and
+«سال گذشته» are calculated using the current date in `Asia/Tehran`, then saved
+as **fixed absolute dates**. «این هفته» covers the full Saturday–Friday week;
+seasons start on 1 Farvardin, Tir, Mehr and Dey, including leap Esfand 30 in
+winter. They do not
 roll forward automatically. Use rolling presets for dashboard defaults.
 Gregorian midnight values have no timezone suffix; coordinate Superset,
 PostgreSQL session, and source-data timezones.
@@ -116,10 +129,14 @@ window, and NULL source dates, produce NULL in **all** derived columns.
 | `jalali_month_name` | text | مهر |
 | `jalali_month_label` | text | 1403-07 مهر |
 | `jalali_season` | text | پاییز |
-| `jalali_season_key` | text | 1403-3 (seasons 1–4) |
+| `jalali_season_key` | text | 1403-3 پاییز (seasons 1–4) |
 | `jalali_weekday` | text | چهارشنبه |
 | `jalali_weekday_num` | integer | 4 (Saturday=0) |
 | `jalali_week_start` | date | 2024-10-05 (Saturday, Gregorian date) |
+
+`jalali_season_key` combines the year, season number (1–4) and Persian name,
+for example `1403-3 پاییز`. It sorts chronologically and reads well as a chart
+label. Weekday labels use Persian ZWNJ spelling: یک‌شنبه، سه‌شنبه، پنج‌شنبه.
 
 Use `alias` and `prefix` to add more than one source date:
 
