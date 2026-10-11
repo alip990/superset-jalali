@@ -52,30 +52,35 @@ export function DateFilter(props: DateFilterControlProps) {
     const outside = (e: MouseEvent) => {
       if (!popover.current?.contains(e.target as Node) && !trigger.current?.contains(e.target as Node)) close();
     };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {e.preventDefault(); close();}
-      if (e.key === 'Tab') {
-        const elements = popover.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input,select');
-        if (!elements?.length) return;
-        const first = elements[0], last = elements[elements.length-1];
-        if (e.shiftKey && document.activeElement === first) {e.preventDefault(); last.focus();}
-        else if (!e.shiftKey && document.activeElement === last) {e.preventDefault(); first.focus();}
-      }
-    };
     positionPanel();
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(positionPanel);
     if (popover.current) observer?.observe(popover.current);
     popover.current?.querySelector<HTMLElement>('button')?.focus();
-    document.addEventListener('mousedown', outside); document.addEventListener('keydown', key);
+    document.addEventListener('mousedown', outside);
     window.addEventListener('resize', positionPanel); window.addEventListener('scroll', positionPanel, true);
     return () => {
       observer?.disconnect();
-      document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', key);
+      document.removeEventListener('mousedown', outside);
       window.removeEventListener('resize', positionPanel); window.removeEventListener('scroll', positionPanel, true);
       callbacks.current.onClosePopover?.();
     };
   }, [open]);
   const close = () => {setOpen(false); trigger.current?.focus();};
+  // Portals bubble through the React tree: contain handled keys before parent dialogs.
+  const key = (e: import('react').KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {e.preventDefault(); e.stopPropagation(); close(); return;}
+    if (e.key === 'Tab') {
+      e.stopPropagation();
+      const elements = e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled):not([tabindex="-1"]),input,select');
+      if (!elements.length) return;
+      const first = elements[0], last = elements[elements.length-1];
+      if (e.shiftKey && document.activeElement === first) {e.preventDefault(); last.focus();}
+      else if (!e.shiftKey && document.activeElement === last) {e.preventDefault(); first.focus();}
+      return;
+    }
+    // Calendar handles arrows/selection; other buttons keep their native activation.
+    if (e.defaultPrevented || ((e.key === 'Enter' || e.key === ' ') && (e.target as HTMLElement).closest('button'))) e.stopPropagation();
+  };
   const show = () => {
     if (open) {close(); return;}
     const next = presets(); setOptions(next);
@@ -123,7 +128,7 @@ export function DateFilter(props: DateFilterControlProps) {
   };
   return <>
     <button ref={trigger} type="button" className="sj-trigger" dir="rtl" title={label(value)} aria-label={name || 'بازهٔ زمانی'} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{label(value)} ▾</button>
-    {open && ReactDOM.createPortal(<div ref={popover} className="sj-popover" dir="rtl" role="dialog" aria-modal="true" aria-label="انتخاب بازهٔ زمانی جلالی" style={isOverflowingFilterBar ? {top:'50%',left:'50%',transform:'translate(-50%, -50%)'} : position}>
+    {open && ReactDOM.createPortal(<div ref={popover} className="sj-popover" dir="rtl" role="dialog" aria-modal="true" aria-label="انتخاب بازهٔ زمانی جلالی" onKeyDown={key} style={isOverflowingFilterBar ? {top:'50%',left:'50%',transform:'translate(-50%, -50%)'} : position}>
       <div className="sj-tabs" role="tablist" aria-label="روش انتخاب بازه">
         {([['presets','بازه‌های آماده'],['calendar','تقویم'],['advanced','پیشرفته']] as const).map(([id, title]) => <button type="button" key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'sj-active' : ''} onClick={() => switchTab(id)}>{title}</button>)}
       </div>

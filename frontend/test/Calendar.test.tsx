@@ -35,11 +35,13 @@ function calendar(year = 1403, month = 7, start?: Jalali) {
 function day(date: Jalali) {
   return container.querySelector<HTMLButtonElement>(`button[aria-label="${format(date)}"]`)!;
 }
-function key(button: HTMLElement, key: string) {
-  act(() => {button.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles:true, cancelable:true}));});
+function key(button: HTMLElement, key: string, shiftKey = false) {
+  const event = new KeyboardEvent('keydown', {key, shiftKey, bubbles:true, cancelable:true});
+  act(() => {button.dispatchEvent(event);});
+  return event;
 }
-function filter(overflow = false) {
-  act(() => {ReactDOM.render(<DateFilter name="Time" onChange={() => {}} isOverflowingFilterBar={overflow}/>, container);});
+function filter(overflow = false, onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>, onClosePopover?: () => void) {
+  act(() => {ReactDOM.render(<div onKeyDown={onKeyDown}><DateFilter name="Time" onChange={() => {}} isOverflowingFilterBar={overflow} onClosePopover={onClosePopover}/></div>, container);});
   const trigger = container.querySelector<HTMLButtonElement>('.sj-trigger')!;
   vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({right:500,bottom:100} as DOMRect);
   act(() => {trigger.click();});
@@ -151,4 +153,73 @@ it.each([false,true])('positions the popover for overflow=%s', overflow => {
     expect(style.top).toBe('106px'); expect(style.left).toBe('120px');
     expect(style.transform).toBe('');
   }
+});
+
+it('closes only the popover on Escape without reaching a parent dialog', () => {
+  const parent = vi.fn(), onClose = vi.fn();
+  const panel = filter(false, parent, onClose);
+  act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
+  const input = panel.querySelector<HTMLInputElement>('.sj-inputs input')!;
+  input.focus();
+  expect(key(input, 'Escape').defaultPrevented).toBe(true);
+  expect(document.querySelector('.sj-popover')).toBeNull();
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(parent).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(container.querySelector('.sj-trigger'));
+});
+
+it.each([false,true])('traps Tab and Shift+Tab without reaching a parent, calendar=%s', calendar => {
+  const parent = vi.fn(), panel = filter(false, parent);
+  if (calendar) act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
+  const first = panel.querySelector<HTMLButtonElement>('button')!;
+  const last = panel.querySelector<HTMLButtonElement>('.sj-primary')!;
+  last.focus();
+  expect(key(last, 'Tab').defaultPrevented).toBe(true);
+  expect(document.activeElement).toBe(first);
+  expect(key(first, 'Tab', true).defaultPrevented).toBe(true);
+  expect(document.activeElement).toBe(last);
+  // Interior Tab keeps native navigation; jsdom has no default Tab action.
+  const middle = panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1];
+  middle.focus();
+  expect(key(middle, 'Tab').defaultPrevented).toBe(false);
+  expect(parent).not.toHaveBeenCalled();
+});
+
+it('keeps all calendar arrow keys inside the portal while moving focus', () => {
+  const parent = vi.fn(), panel = filter(false, parent);
+  act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
+  panel.querySelector<HTMLButtonElement>('.sj-grid button[tabindex="0"]')!.focus();
+  for (const [arrow,date] of [
+    ['ArrowLeft',[1403,7,7]], ['ArrowRight',[1403,7,6]],
+    ['ArrowDown',[1403,7,13]], ['ArrowUp',[1403,7,6]],
+  ] as [string,Jalali][]) {
+    expect(key(document.activeElement as HTMLElement, arrow).defaultPrevented).toBe(true);
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(format(date));
+  }
+  expect(parent).not.toHaveBeenCalled();
+});
+
+it.each(['Enter',' '])('keeps button activation key %j inside the portal', activation => {
+  const parent = vi.fn(), panel = filter(false, parent);
+  const preset = panel.querySelector<HTMLButtonElement>('.sj-presets button')!;
+  expect(key(preset, activation).defaultPrevented).toBe(false); // Preserve native button activation.
+  act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
+  const day = panel.querySelector<HTMLButtonElement>('.sj-grid button[tabindex="0"]')!;
+  expect(key(day, activation).defaultPrevented).toBe(true);
+  expect(day.getAttribute('aria-pressed')).toBe('true');
+  expect(parent).not.toHaveBeenCalled();
+});
+
+it('leaves text-input keys available for editing and still closes on outside mousedown', () => {
+  const parent = vi.fn(), onClose = vi.fn(), panel = filter(false, parent, onClose);
+  act(() => {panel.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click();});
+  const input = panel.querySelector<HTMLInputElement>('.sj-inputs input')!;
+  input.focus();
+  for (const editing of ['ArrowLeft',' ']) expect(key(input, editing).defaultPrevented).toBe(false);
+  expect(parent).toHaveBeenCalledTimes(2);
+  act(() => {input.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));});
+  expect(document.querySelector('.sj-popover')).toBe(panel);
+  act(() => {document.body.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));});
+  expect(document.querySelector('.sj-popover')).toBeNull();
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
