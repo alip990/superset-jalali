@@ -122,6 +122,10 @@ FROM your_table AS t
 {{ jalali_join('t.created_at') }}
 ```
 
+See [docs/USAGE.md](docs/USAGE.md) for a step-by-step guide: creating the
+dataset, building charts, quoted column names, several date columns, options,
+performance tips and troubleshooting.
+
 No database tables or functions are created. Dates outside the configured
 window, and NULL source dates, produce NULL in **all** derived columns.
 
@@ -296,7 +300,8 @@ route's catalogue to include the Jalali bundle if needed.
 | Derived SQL columns are NULL | Check source NULLs, year bounds, matching join aliases and database timezone. |
 | `column t.xyz does not exist` for a mixed-case column | Quote the column part exactly as created: `t."OccouredDate"`. |
 
-See [HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) for pinned upstream references and
+See [USAGE.md](docs/USAGE.md) for the SQL macro guide,
+[HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) for pinned upstream references and
 [VERIFY.md](docs/VERIFY.md) for manual release checks.
 
 ## Build and publish
