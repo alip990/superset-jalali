@@ -60,8 +60,14 @@ expressions are evaluated by Superset; calendar presets use the current Tehran
 calendar day and become fixed dates. Native filters continue to target the
 original Gregorian column, preserving normal range predicates and index use.
 
-PostgreSQL macros use a bounded inline year table joined on the source date.
-Display/grouping expressions do not alter the source column. All derived values
-are NULL for a NULL date or dates outside the configured year window. Timestamp
-casts to date follow the database session timezone; coordinate it with Superset
-and the data's business timezone. Narrow the year window to reduce join work.
+PostgreSQL macros join a bounded inline table with one row per Gregorian year.
+Jalali year J starts at Nowruz in March of Gregorian year J + 621, so a date in
+Gregorian year G belongs to Jalali year G - 621 on or after that year's Nowruz,
+and to G - 622 before it. Each row holds the Gregorian year, its Nowruz, the
+previous Nowruz and both Jalali years (NULL outside the window). The join is an
+equality on `EXTRACT(YEAR ...)`, which PostgreSQL runs as a hash join with one
+lookup per row; the columns then pick the year and year start with one
+comparison. Display/grouping expressions do not alter the source column. All
+derived values are NULL for a NULL date or dates outside the configured year
+window. Timestamp casts to date follow the database session timezone; coordinate
+it with Superset and the data's business timezone.

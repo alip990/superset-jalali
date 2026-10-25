@@ -40,3 +40,7 @@
   stale arrow-key focus requests, preventing the grid from stealing focus.
 - Release checklist and expanded real-instance verification steps; Superset
   runtime verification remains pending.
+- Column arguments accept double-quoted identifiers for mixed-case PostgreSQL
+  columns.
+- Faster year join: equality join on the Gregorian year instead of a range join
+  (about 2-16x faster on large tables in local benchmarks).
