@@ -122,6 +122,10 @@ FROM your_table AS t
 {{ jalali_join('t.created_at') }}
 ```
 
+See [docs/USAGE.md](docs/USAGE.md) for a step-by-step guide: creating the
+dataset, building charts, quoted column names, several date columns, options,
+performance tips and troubleshooting.
+
 No database tables or functions are created. Dates outside the configured
 window, and NULL source dates, produce NULL in **all** derived columns.
 
@@ -153,12 +157,38 @@ FROM your_table AS t
 {{ jalali_join('t.created_at', alias='_created') }}
 ```
 
-Inputs must be simple ASCII SQL identifiers: a dotted column name, an undotted
-alias, and an undotted prefix. Expressions, quoted names, comments, whitespace
-and arbitrary SQL are rejected. Each resulting identifier must fit PostgreSQL's
-63-byte limit. Aliases must match in the two macros and avoid dataset collisions.
+The column may be a dotted name whose parts are plain or double-quoted
+identifiers, for example `t.created_at`, `t."OccouredDate"` or
+`"CR"."DeviceCrime"."OccouredDate"`. Quote mixed-case or upper-case columns:
+PostgreSQL folds unquoted names to lower case, so `t.OccouredDate` means
+`t.occoureddate`. Quoted parts are emitted exactly as written; inside them,
+`""` is an escaped quote. The alias and prefix are plain ASCII identifiers
+without quotes or dots. PostgreSQL also returns unquoted output names in lower
+case, so a prefix like `Jalali_` produces `jalali_year`. Expressions, comments,
+whitespace outside quotes and arbitrary SQL are rejected. Each identifier part
+must fit PostgreSQL's 63-byte limit. Aliases must match in the two macros and
+avoid dataset collisions.
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
+
+### Performance
+
+- The join is an equality join on the Gregorian year: PostgreSQL does one hash
+  lookup per row, so the size of the SQL year window hardly affects speed.
+- Always filter on the real date column; the Jalali picker does this.
+  PostgreSQL then uses the date index and computes Jalali values only for the
+  filtered rows.
+- Do not filter on a Jalali column, such as `jalali_year = 1403` or a Select
+  filter on `jalali_month`: the index cannot be used and every row is converted
+  first.
+- Full-history charts over millions of rows still compute labels for each row;
+  rely on the Superset data cache, or a pre-aggregated table if needed.
+- Use `SELECT t.*`, not `SELECT *`: the join adds helper columns (`gyear`,
+  `nowruz`, `prev_nowruz`, `year_after`, `year_before`) that can clash with
+  source column names.
+
+`scripts/bench_macros.py` times these cases on a synthetic 5,000,000-row table
+(`PG_DSN=postgresql://... python scripts/bench_macros.py`; `--help` for options).
 
 ### Timestamps with time zone
 
@@ -212,8 +242,8 @@ JALALI = {
 | `sql_digits` | `"latin"` | `"latin"` or `"persian"` for text values; the macro's `digits` argument overrides it. |
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 
-Narrowing the SQL year window reduces join work and can make queries much
-faster. The SQL settings do not restrict the picker's calendar.
+The join cost barely depends on the SQL year window; narrow it only to
+NULL out unwanted years. The SQL settings do not restrict the picker's calendar.
 
 `init_jalali(globals(), datefilter=False)` adds only macros.
 `init_jalali(globals(), macros=False)` adds only the picker. Repeated calls are
@@ -268,8 +298,10 @@ route's catalogue to include the Jalali bundle if needed.
 | Charts are not filtered | Check for a temporal date column, its No filter time pill, and native filter chart scope. |
 | Macros remain literal or are unavailable | Explicitly enable `ENABLE_TEMPLATE_PROCESSING`, call `init_jalali` after your settings, and install the package in all workers. |
 | Derived SQL columns are NULL | Check source NULLs, year bounds, matching join aliases and database timezone. |
+| `column t.xyz does not exist` for a mixed-case column | Quote the column part exactly as created: `t."OccouredDate"`. |
 
-See [HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) for pinned upstream references and
+See [USAGE.md](docs/USAGE.md) for the SQL macro guide,
+[HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) for pinned upstream references and
 [VERIFY.md](docs/VERIFY.md) for manual release checks.
 
 ## Build and publish
@@ -286,6 +318,11 @@ python -m pip install -e '.[dev]'
 pytest
 python -m build
 ```
+
+Set `PG_DSN` (for example `postgresql://postgres@localhost:5432/postgres`) to
+also run `tests/test_sql_postgres.py`, which executes the macros on PostgreSQL
+and compares every day from 1985 to 2045 with the Python calendar. CI runs it
+against a `postgres:16` service; without `PG_DSN` it is skipped.
 
 `nowruz.ts` and comparison fixtures are generated from the committed Python
 table. The version comes from `pyproject.toml`. esbuild produces minified ESM,
