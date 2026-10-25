@@ -19,6 +19,45 @@ def test_bad_column(bad):
         with pytest.raises(ValueError): macro(bad)
 
 
+QUOTED_OK = ['occurred_at', 't.occurred_at', 't."OccouredDate"', '"CR"."DeviceCrime"."OccouredDate"',
+             'public.t."Created At"', 't."Weird""Name"', 't."' + 'a' * 63 + '"', 't."' + 'ی' * 31 + '"',
+             't."' + '""' * 63 + '"']
+QUOTED_BAD = ['t."a" OR 1=1 --', 't."x";DROP TABLE fact', 't."unterminated', 't."a"b"', 't.col; select 1',
+              't."a"\'', 't.""', '"a".', '.a', 't. a', 't.a b', 'now()', 't."a\x00b"',
+              't."' + 'a' * 64 + '"', 't."' + 'ی' * 32 + '"', 't."' + '""' * 64 + '"', 't.' + 'a' * 64]
+
+
+@pytest.mark.parametrize('good', QUOTED_OK)
+@pytest.mark.parametrize('macro', [jalali_join, jalali_columns])
+def test_plain_and_quoted_column_names_are_accepted(good, macro):
+    assert good in macro(good)
+
+
+@pytest.mark.parametrize('bad', QUOTED_BAD)
+@pytest.mark.parametrize('macro', [jalali_join, jalali_columns])
+def test_non_identifier_columns_are_rejected(bad, macro):
+    with pytest.raises(ValueError): macro(bad)
+
+
+def test_quoted_column_is_emitted_verbatim():
+    cols, join = jalali_columns('t."OccouredDate"'), jalali_join('t."OccouredDate"')
+    for sql in [cols, join]:
+        assert '(t."OccouredDate")::date' in sql
+        assert 't.OccouredDate' not in sql and 'occoureddate' not in sql
+    tree = sqlglot.parse_one(f'SELECT t.*, {cols} FROM "CR"."DeviceCrime" t {join}', read='postgres')
+    assert len(tree.expressions) == 14
+    columns = {column.sql(dialect='postgres') for column in tree.find_all(sqlglot.exp.Column) if column.table == 't'}
+    assert columns == {'t.*', 't."OccouredDate"'}
+
+
+@pytest.mark.parametrize('kwargs', [{'alias': '"_jy"'}, {'alias': 'a.b'}, {'prefix': '"jalali_"'}, {'prefix': 'a b'}])
+def test_alias_and_prefix_stay_plain(kwargs):
+    with pytest.raises(ValueError): jalali_columns('t.d', **kwargs)
+    if 'alias' in kwargs:
+        with pytest.raises(ValueError): jalali_join('t.d', **kwargs)
+    assert 'AS Jalali_year' in jalali_columns('t.d', prefix='Jalali_')
+
+
 def test_alias_prefix_and_config():
     for kwargs in [{'alias': 'x.y'}, {'prefix': 'bad-'}]:
         with pytest.raises(ValueError): jalali_columns('t.d', **kwargs)

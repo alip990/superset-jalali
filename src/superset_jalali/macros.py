@@ -4,15 +4,20 @@ from flask import current_app, has_app_context
 from .names import MONTHS, SEASONS, WEEKDAYS
 from .nowruz import NOWRUZ
 
+_PLAIN = r'[A-Za-z_][A-Za-z0-9_]*'
+# A plain identifier or a double-quoted one; "" escapes a quote, NUL is never allowed.
+_PART = rf'(?:{_PLAIN}|"(?:[^"\x00]|"")+")'
+
 
 def _identifier(value: str, *, dotted=False, empty=False) -> str:
-    pattern = r'[A-Za-z_][A-Za-z0-9_]*'
-    if dotted:
-        pattern += r'(?:\.[A-Za-z_][A-Za-z0-9_]*)*'
+    """Plain identifiers are emitted unquoted; quoted column parts keep their quotes and case."""
+    pattern = rf'{_PART}(?:\.{_PART})*' if dotted else _PLAIN
     if not isinstance(value, str) or (not (empty and value == '') and not re.fullmatch(pattern, value)):
         raise ValueError(f'Invalid SQL identifier: {value!r}')
-    if any(len(part) > 63 for part in value.split('.')):
-        raise ValueError('PostgreSQL identifiers must fit in 63 bytes')
+    for part in re.findall(_PART, value):
+        name = part[1:-1].replace('""', '"') if part.startswith('"') else part
+        if len(name.encode()) > 63:
+            raise ValueError('PostgreSQL identifiers must fit in 63 bytes')
     return value
 
 
