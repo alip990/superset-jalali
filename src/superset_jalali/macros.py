@@ -34,6 +34,16 @@ def _date_expression(col: str, tz) -> str:
     return f"(({col}) AT TIME ZONE '{tz}')::date"
 
 
+def _year_rows(lo, hi):
+    """One row per Gregorian year: Jalali year gy - 621 starts at that year's March Nowruz."""
+    def year(jy):
+        return jy if lo <= jy <= hi else 'NULL'
+    def day(jy):
+        return f"DATE '{NOWRUZ[jy]}'" if jy in NOWRUZ else 'NULL'
+    first, last = int(NOWRUZ[lo][:4]), int(NOWRUZ[hi][:4]) + 1
+    return [(gy, day(gy - 621), day(gy - 622), year(gy - 621), year(gy - 622)) for gy in range(first, last + 1)]
+
+
 def jalali_join(col: str, alias: str = '_jy', *, tz=None) -> str:
     col, alias = _identifier(col, dotted=True), _identifier(alias)
     date = _date_expression(col, tz)
@@ -41,9 +51,10 @@ def jalali_join(col: str, alias: str = '_jy', *, tz=None) -> str:
     lo, hi = config.get('sql_min_year', 1390), config.get('sql_max_year', 1420)
     if type(lo) is not int or type(hi) is not int or not 1350 <= lo <= hi <= 1550:
         raise ValueError('SQL years must satisfy 1350 <= min <= max <= 1550')
-    rows = ',\n  '.join(f"({y}, DATE '{NOWRUZ[y]}', DATE '{NOWRUZ[y+1]}')" for y in range(lo, hi + 1))
-    return (f'LEFT JOIN (VALUES\n  {rows}\n) AS {alias}(year, start_date, end_date)\n'
-            f'  ON {date} >= {alias}.start_date AND {date} < {alias}.end_date')
+    rows = ',\n  '.join(f'({", ".join(map(str, row))})' for row in _year_rows(lo, hi))
+    # Equality on the Gregorian year lets PostgreSQL hash join: one lookup per source row.
+    return (f'LEFT JOIN (VALUES\n  {rows}\n) AS {alias}(gyear, nowruz, prev_nowruz, year_after, year_before)\n'
+            f'  ON {alias}.gyear = EXTRACT(YEAR FROM {date})::int')
 
 
 def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None, *, tz=None) -> str:
@@ -53,8 +64,10 @@ def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits
     digits = _config().get('sql_digits', 'latin') if digits is None else digits
     if digits not in ('latin', 'persian'):
         raise ValueError('sql_digits must be latin or persian')
-    y = f'{alias}.year'
-    doy = f'({date} - {alias}.start_date)'
+    after = f'{date} >= {alias}.nowruz'
+    y = f'(CASE WHEN {after} THEN {alias}.year_after ELSE {alias}.year_before END)'
+    start = f'(CASE WHEN {after} THEN {alias}.nowruz ELSE {alias}.prev_nowruz END)'
+    doy = f'({date} - {start})'
     m = f'(CASE WHEN {doy} < 186 THEN {doy} / 31 + 1 ELSE ({doy} - 186) / 30 + 7 END)'
     d = f'(CASE WHEN {doy} < 186 THEN {doy} % 31 + 1 ELSE ({doy} - 186) % 30 + 1 END)'
     season = f'(({m} - 1) / 3 + 1)'
