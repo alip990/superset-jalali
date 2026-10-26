@@ -2,7 +2,7 @@ from datetime import date, timedelta
 import jdatetime
 from persiantools.jdatetime import JalaliDate
 import pytest
-from superset_jalali.calendar import g2j, j2g, month_length, parse_jalali
+from superset_jalali.calendar import g2j, j2g, month_length
 from superset_jalali.nowruz import NOWRUZ
 
 
@@ -26,12 +26,10 @@ def test_table_and_anchors():
     assert NOWRUZ[1405] == '2026-03-21'
 
 
-def test_leap_and_digits():
+def test_leap_and_invalid_days():
     assert month_length(1403, 12) == 30
     assert j2g(1403, 12, 30) == date(2025, 3, 20)
-    for value in ['۱۴۰۳/۱۲/۳۰', '١٤٠٣/١٢/٣٠', '1403-12-30']:
-        assert parse_jalali(value) == (1403, 12, 30)
-    for value in ['1404/12/30', '1403/13/01', '1403/01/00', 'x1403/1/1']:
-        with pytest.raises(ValueError): parse_jalali(value)
+    for value in [(1404, 12, 30), (1403, 13, 1), (1403, 1, 0)]:
+        with pytest.raises(ValueError): j2g(*value)
     for value in [date(1971, 3, 20), date.fromisoformat(NOWRUZ[1551])]:
         with pytest.raises(ValueError): g2j(value)

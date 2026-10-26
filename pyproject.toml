@@ -17,7 +17,7 @@ Repository = "https://github.com/alip990/superset-jalali"
 Issues = "https://github.com/alip990/superset-jalali/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "jdatetime==6.1.0", "persiantools==4.0.0", "sqlglot>=25", "build>=1.2", "psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "jdatetime==6.1.0", "persiantools==4.0.0", "sqlglot>=25", "build>=1.2", "psycopg[binary]>=3.1", "Flask-WTF>=1.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/superset_jalali"]

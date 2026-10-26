@@ -5,8 +5,9 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 A Persian, RTL, Saturday-first **Jalali date picker** for dashboard **Time range**
-native filters, including embedded dashboards. Optional Jinja macros add Jalali
-display and grouping columns to PostgreSQL virtual datasets. One pip package;
+native filters, including embedded dashboards. Jalali display and grouping
+columns for PostgreSQL datasets: added in one click to a table picked in the UI,
+or with Jinja macros in a virtual dataset. One pip package;
 no Superset changes, frontend rebuild, Node installation, or database migration
 is needed by users.
 
@@ -103,6 +104,111 @@ roll forward automatically. Use rolling presets for dashboard defaults.
 Gregorian midnight values have no timezone suffix; coordinate Superset,
 PostgreSQL session, and source-data timezones.
 
+## Jalali columns without SQL
+
+A dataset created from a table in **Datasets → + Dataset** (a physical
+dataset) can get Jalali columns in one click. The plugin adds up to 13
+**calculated columns** to the dataset; each one is a single expression that
+calls the `jalali(col, field)` Jinja function, for example
+`{{ jalali('"OccouredDate"', 'month_label') }}`. Nobody types SQL.
+
+### Which path to use
+
+| | Calculated columns (this section) | Virtual dataset with `jalali_columns` + `jalali_join` |
+| --- | --- | --- |
+| Dataset | Table picked in the UI | SQL Lab query saved as a dataset |
+| SQL to write | None | 3 lines ([below](#optional-postgresql-jinja-macros)) |
+| Speed | Fine with a date filter; slower on full-history charts | Fastest; best for large tables and full-history charts |
+| Values | Identical (checked row by row in CI) | Identical |
+
+Measured on 2026-10-26 with `scripts/bench_macros.py`: 5,000,000 rows,
+PostgreSQL 16.15 on aarch64, index on the date column, best of 3:
+
+| Query | Virtual dataset (join) | Calculated columns |
+| --- | --- | --- |
+| Group by `jalali_date`, one-month date filter | 0.061 s | 0.117 s |
+| Group by `jalali_month_label`, all rows, years 1400–1410 | 4.47 s | 8.73 s |
+| Group by `jalali_month_label`, all rows, years 1390–1420 | 4.49 s | 11.36 s |
+| Count where `jalali_year = 1403` (avoid this) | 1.02 s | 2.68 s |
+| Plain SQL, group by Gregorian month, all rows | 1.23 s | 1.23 s |
+
+With a dashboard date filter both are fast; for full-history charts on very
+large tables prefer the virtual dataset.
+
+### Requirements
+
+- PostgreSQL database; template processing enabled explicitly:
+
+  ```python
+  FEATURE_FLAGS = {**FEATURE_FLAGS, "ENABLE_TEMPLATE_PROCESSING": True}
+  ```
+
+  Without it Superset sends `{{ jalali(...) }}` to the database unrendered,
+  so the page and CLI refuse to add columns.
+- `init_jalali(globals())` with macros enabled (the default).
+- You can edit the dataset: Admin, or an owner with `can write on Dataset`.
+- Run `superset init` after installing or upgrading, as for any Superset
+  upgrade, so the menu link gets its permission.
+
+### With the page
+
+1. Open **Settings → Data → Jalali columns**, or `/superset-jalali/columns/`.
+2. Choose the dataset and its date column. Only PostgreSQL datasets you may
+   edit, and their physical date/timestamp columns, are listed.
+3. Keep all 13 fields checked (or pick some), keep the prefix `jalali_`.
+   Choose timezone **Asia/Tehran** only for `timestamptz` columns.
+4. Click «افزودن ستون‌های جلالی». The columns appear in **Edit dataset →
+   Calculated columns**. «حذف ستون‌های جلالی» removes only the columns the
+   plugin created from that date column.
+
+### With the CLI
+
+```sh
+superset jalali add-columns --dataset CR.DeviceCrime --column OccouredDate
+superset jalali add-columns --dataset 12 --column created_at --tz Asia/Tehran --fields year,month_label
+superset jalali remove-columns --dataset CR.DeviceCrime --column OccouredDate
+```
+
+`--dataset` is an id, `table` or `schema.table`. Commands run as `--user`
+(default: the first Admin) and print the created, updated or removed names.
+
+### Columns
+
+| Column | Type | Persian name | Example for 2024-10-09 |
+| --- | --- | --- | --- |
+| `jalali_year` | INTEGER | سال جلالی | 1403 |
+| `jalali_month_num` | INTEGER | شماره ماه جلالی | 7 |
+| `jalali_day` | INTEGER | روز ماه جلالی | 18 |
+| `jalali_date` | VARCHAR | تاریخ جلالی | 1403/07/18 |
+| `jalali_date_int` | INTEGER | تاریخ جلالی (عددی) | 14030718 |
+| `jalali_month` | VARCHAR | ماه جلالی (کلید) | 1403-07 |
+| `jalali_month_name` | VARCHAR | نام ماه جلالی | مهر |
+| `jalali_month_label` | VARCHAR | ماه جلالی | 1403-07 مهر |
+| `jalali_season` | VARCHAR | فصل جلالی | پاییز |
+| `jalali_season_key` | VARCHAR | فصل جلالی (کلید) | 1403-3 پاییز |
+| `jalali_weekday` | VARCHAR | روز هفته | چهارشنبه |
+| `jalali_weekday_num` | INTEGER | شماره روز هفته (شنبه = ۰) | 4 |
+| `jalali_week_start` | DATE | شروع هفته (شنبه) | 2024-10-05 |
+
+The Persian name is the column's label in Explore. Values follow the
+`sql_min_year`/`sql_max_year` window, `sql_digits` and `sql_timezone` settings,
+and are NULL for NULL dates or dates outside the window, exactly as in the
+virtual-dataset macros.
+
+### Rules
+
+- **Filter dashboards on the real date column.** Keep it as the dataset's
+  temporal column; the Jalali picker filters it with an index-friendly range.
+- **Never filter on a Jalali column** (`jalali_year = 1403`, a Select filter on
+  `jalali_month`): every row is converted first and the index is not used.
+- **Sort month labels by `jalali_month` or `jalali_date_int`**, not by the
+  Persian name; `jalali_month_label` itself also sorts correctly as text.
+- `ENABLE_TEMPLATE_PROCESSING` must stay on, or the columns stop rendering.
+- Existing columns with the same name and not created by the plugin are never
+  overwritten: the action fails with a conflict (HTTP 409) and lists them.
+  Columns the plugin created are updated in place. They carry a marker in
+  their `extra` field.
+
 ## Optional PostgreSQL Jinja macros
 
 Explicitly enable template processing if appropriate for your Superset setup:
@@ -171,6 +277,12 @@ avoid dataset collisions.
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
 
+`jalali(col, field, tz=None, digits=None)` returns one of the 13 fields as a
+single expression, with no join, for calculated columns or any SQL where a join
+is not possible. `field` is a column name without the prefix, such as `year`
+or `month_label`; other arguments behave as in `jalali_columns`. Its values
+are identical to the join's.
+
 ### Performance
 
 - The join is an equality join on the Gregorian year: PostgreSQL does one hash
@@ -231,6 +343,7 @@ JALALI = {
     "sql_max_year": 1420,
     "sql_digits": "latin",
     "sql_timezone": None,
+    "columns_ui_enabled": True,
 }
 ```
 
@@ -241,17 +354,21 @@ JALALI = {
 | `sql_max_year` | `1420` | Last year, inclusive; must satisfy 1350 ≤ min ≤ max ≤ 1550. |
 | `sql_digits` | `"latin"` | `"latin"` or `"persian"` for text values; the macro's `digits` argument overrides it. |
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
+| `columns_ui_enabled` | `True` | `False` hides the Jalali columns page and menu link; the page and its API return 404. The CLI and existing columns keep working. Independent of `datefilter_enabled`. |
 
 The join cost barely depends on the SQL year window; narrow it only to
 NULL out unwanted years. The SQL settings do not restrict the picker's calendar.
 
-`init_jalali(globals(), datefilter=False)` adds only macros.
-`init_jalali(globals(), macros=False)` adds only the picker. Repeated calls are
+`init_jalali(globals(), datefilter=False)` adds the macros and the Jalali
+columns page; it registers the blueprint but sets `datefilter_enabled` to
+`False`, so the picker stays off. `init_jalali(globals(), macros=False)` adds
+only the picker. Repeated calls are
 safe; existing blueprints, feature flags and Jinja helpers are preserved, except
 that requesting the picker sets `DYNAMIC_PLUGINS=True`.
-The picker also chains any existing `FLASK_APP_MUTATOR`, calling it first and
-then logging an error at startup if dynamic plugins are enabled without their
-discovery route; the check does not raise or repair the configuration.
+The plugin also chains any existing `FLASK_APP_MUTATOR`, calling it first. It
+then logs an error at startup if dynamic plugins are enabled without their
+discovery route (the check does not raise or repair the configuration), and
+adds the **Settings → Data → Jalali columns** menu link when macros are on.
 
 ### Manual equivalent
 
@@ -269,7 +386,8 @@ JINJA_CONTEXT_ADDONS = {**JINJA_ADDONS, **globals().get("JINJA_CONTEXT_ADDONS", 
 ```
 
 Always register the blueprint when enabling dynamic plugins on Superset 6.x.
-The manual configuration above does not install the startup check.
+The manual configuration above does not install the startup check or the menu
+link; open `/superset-jalali/columns/` directly.
 An already registered discovery route is preserved and logged; configure that
 route's catalogue to include the Jalali bundle if needed.
 
@@ -281,7 +399,7 @@ route's catalogue to include the Jalali bundle if needed.
 - Superset time grains and time comparisons remain Gregorian. Use the Jalali
   columns for Jalali grouping, labels and comparisons.
 - Calendar presets are fixed dates. Rolling expressions use the server timezone.
-- Macros support PostgreSQL only in v0.1. Without a configured timezone,
+- Macros and Jalali columns support PostgreSQL only in v0.1. Without a configured timezone,
   `timestamptz`-to-date casts use the database session timezone; values outside
   the SQL year window yield NULL.
 - An existing `filter.dateFilterControl` override takes precedence.
@@ -298,6 +416,9 @@ route's catalogue to include the Jalali bundle if needed.
 | Charts are not filtered | Check for a temporal date column, its No filter time pill, and native filter chart scope. |
 | Macros remain literal or are unavailable | Explicitly enable `ENABLE_TEMPLATE_PROCESSING`, call `init_jalali` after your settings, and install the package in all workers. |
 | Derived SQL columns are NULL | Check source NULLs, year bounds, matching join aliases and database timezone. |
+| Jalali columns page says template processing is off | Set `FEATURE_FLAGS["ENABLE_TEMPLATE_PROCESSING"] = True` and restart. |
+| No "Jalali columns" menu link | Run `superset init`, check `columns_ui_enabled`, or open `/superset-jalali/columns/`. |
+| Page lists no datasets | Only PostgreSQL datasets you own (or all, for Admin) with `can write on Dataset` are listed. |
 | `column t.xyz does not exist` for a mixed-case column | Quote the column part exactly as created: `t."OccouredDate"`. |
 
 See [USAGE.md](docs/USAGE.md) for the SQL macro guide,
@@ -328,8 +449,10 @@ against a `postgres:16` service; without `PG_DSN` it is skipped.
 table. The version comes from `pyproject.toml`. esbuild produces minified ESM,
 a sourcemap, a hashed bundle and `manifest.json`; the build fails above 60 KB
 gzipped or if React/ReactDOM/antd are bundled. Built static files are gitignored
-and included in both distributions. Build the frontend **before** Python
-packaging. CI checks that the wheel contains its manifest's JS file.
+and included in both distributions; `static/columns.html` and
+`static/columns.js` are plain committed sources that the build leaves alone.
+Build the frontend **before** Python packaging. CI checks that the wheel
+contains its manifest's JS file and the columns page files.
 
 Configure a PyPI Trusted Publisher for package `superset-jalali`, your GitHub
 owner/repository, workflow `release.yml`, and environment `pypi`; create that
@@ -347,7 +470,7 @@ For maintainers, complete these steps before pushing a release tag:
 - [ ] Set or bump the release version in `pyproject.toml`, the sole version
   source, and finalize its CHANGELOG entry. For this first release, use `0.1.0`.
 - [ ] Run the frontend tests/build, `pytest` and `python -m build`; confirm the
-  wheel includes its hashed JS bundle and manifest.
+  wheel includes its hashed JS bundle, manifest, `columns.html` and `columns.js`.
 - [ ] Complete [docs/VERIFY.md](docs/VERIFY.md) on Superset **6.1.x**, recording
   the exact patch version and all results. Include an admin dashboard, an
   embedded dashboard with a guest token, missing-bundle fallback, Escape inside

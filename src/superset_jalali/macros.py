@@ -44,29 +44,23 @@ def _year_rows(lo, hi):
     return [(gy, day(gy - 621), day(gy - 622), year(gy - 621), year(gy - 622)) for gy in range(first, last + 1)]
 
 
-def jalali_join(col: str, alias: str = '_jy', *, tz=None) -> str:
-    col, alias = _identifier(col, dotted=True), _identifier(alias)
-    date = _date_expression(col, tz)
+def _window():
     config = _config()
     lo, hi = config.get('sql_min_year', 1390), config.get('sql_max_year', 1420)
     if type(lo) is not int or type(hi) is not int or not 1350 <= lo <= hi <= 1550:
         raise ValueError('SQL years must satisfy 1350 <= min <= max <= 1550')
-    rows = ',\n  '.join(f'({", ".join(map(str, row))})' for row in _year_rows(lo, hi))
-    # Equality on the Gregorian year lets PostgreSQL hash join: one lookup per source row.
-    return (f'LEFT JOIN (VALUES\n  {rows}\n) AS {alias}(gyear, nowruz, prev_nowruz, year_after, year_before)\n'
-            f'  ON {alias}.gyear = EXTRACT(YEAR FROM {date})::int')
+    return lo, hi
 
 
-def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None, *, tz=None) -> str:
-    col, alias = _identifier(col, dotted=True), _identifier(alias)
-    date = _date_expression(col, tz)
-    _identifier(prefix, empty=True)
+def _digits(digits):
     digits = _config().get('sql_digits', 'latin') if digits is None else digits
     if digits not in ('latin', 'persian'):
         raise ValueError('sql_digits must be latin or persian')
-    after = f'{date} >= {alias}.nowruz'
-    y = f'(CASE WHEN {after} THEN {alias}.year_after ELSE {alias}.year_before END)'
-    start = f'(CASE WHEN {after} THEN {alias}.nowruz ELSE {alias}.prev_nowruz END)'
+    return digits
+
+
+def _field_expressions(date: str, y: str, start: str, digits: str) -> dict:
+    """The only definition of the Jalali fields; y is the Jalali year and start its Nowruz."""
     doy = f'({date} - {start})'
     m = f'(CASE WHEN {doy} < 186 THEN {doy} / 31 + 1 ELSE ({doy} - 186) / 30 + 7 END)'
     d = f'(CASE WHEN {doy} < 186 THEN {doy} % 31 + 1 ELSE ({doy} - 186) % 30 + 1 END)'
@@ -86,10 +80,49 @@ def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits
         'week_start': f'({date} - {weekday})',
     }
     text_fields = {'date', 'month', 'month_label', 'season_key'}
-    result = []
+    result = {}
     for key, expr in expressions.items():
-        name = _identifier(prefix + key)
         if digits == 'persian' and key in text_fields:
             expr = f"translate({expr}, '0123456789', '۰۱۲۳۴۵۶۷۸۹')"
-        result.append(f'CASE WHEN {y} IS NOT NULL THEN {expr} END AS {name}')
-    return ',\n'.join(result)
+        result[key] = f'CASE WHEN {y} IS NOT NULL THEN {expr} END'
+    return result
+
+
+def jalali_join(col: str, alias: str = '_jy', *, tz=None) -> str:
+    col, alias = _identifier(col, dotted=True), _identifier(alias)
+    date = _date_expression(col, tz)
+    rows = ',\n  '.join(f'({", ".join(map(str, row))})' for row in _year_rows(*_window()))
+    # Equality on the Gregorian year lets PostgreSQL hash join: one lookup per source row.
+    return (f'LEFT JOIN (VALUES\n  {rows}\n) AS {alias}(gyear, nowruz, prev_nowruz, year_after, year_before)\n'
+            f'  ON {alias}.gyear = EXTRACT(YEAR FROM {date})::int')
+
+
+def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None, *, tz=None) -> str:
+    col, alias = _identifier(col, dotted=True), _identifier(alias)
+    date = _date_expression(col, tz)
+    _identifier(prefix, empty=True)
+    after = f'{date} >= {alias}.nowruz'
+    y = f'(CASE WHEN {after} THEN {alias}.year_after ELSE {alias}.year_before END)'
+    start = f'(CASE WHEN {after} THEN {alias}.nowruz ELSE {alias}.prev_nowruz END)'
+    expressions = _field_expressions(date, y, start, _digits(digits))
+    return ',\n'.join(f'{expr} AS {_identifier(prefix + key)}' for key, expr in expressions.items())
+
+
+def jalali(col: str, field: str, *, tz=None, digits=None) -> str:
+    """One Jalali field as a single expression, e.g. for a dataset calculated column."""
+    col = _identifier(col, dotted=True)
+    date = _date_expression(col, tz)
+    digits = _digits(digits)
+    rows = _year_rows(*_window())
+    gyear = f'EXTRACT(YEAR FROM {date})::int'
+    def lookup(index):
+        # The year table as CASE lists of literals; years without a value fall through to NULL.
+        return f'(CASE {gyear} ' + ' '.join(f'WHEN {row[0]} THEN {row[index]}' for row in rows if row[index] != 'NULL') + ' END)'
+    nowruz, prev_nowruz, year_after, year_before = (lookup(index) for index in range(1, 5))
+    after = f'{date} >= {nowruz}'
+    y = f'(CASE WHEN {after} THEN {year_after} ELSE {year_before} END)'
+    start = f'(CASE WHEN {after} THEN {nowruz} ELSE {prev_nowruz} END)'
+    expressions = _field_expressions(date, y, start, digits)
+    if field not in expressions:
+        raise ValueError(f'Invalid Jalali field {field!r}; use one of: {", ".join(expressions)}')
+    return expressions[field]

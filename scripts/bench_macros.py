@@ -6,8 +6,10 @@ Usage:
 
 The script creates (or reuses, see --keep) the table bench_jalali_events with
 --rows random timestamps between 2021-03-21 and 2032-03-19 and an index on
-occurred_at, then prints the best of --runs timings for each query. Queries
-wrap the dataset SQL in a subquery, as Superset does for virtual datasets.
+occurred_at, then prints the best of --runs timings for each query. Virtual
+dataset queries wrap the dataset SQL in a subquery, as Superset does; the
+"calculated" queries put jalali() in SELECT and GROUP BY of the table, as
+Superset does for calculated columns of a physical dataset.
 Run it on two checkouts to compare macro versions; drop the table afterwards
 with --drop.
 """
@@ -16,7 +18,7 @@ import os
 import time
 import psycopg
 from flask import Flask
-from superset_jalali.macros import jalali_columns, jalali_join
+from superset_jalali.macros import jalali, jalali_columns, jalali_join
 
 TABLE = 'bench_jalali_events'
 MONTH = "occurred_at >= '2024-03-20' AND occurred_at < '2024-04-20'"
@@ -30,8 +32,16 @@ def dataset(lo, hi):
                 f'FROM {TABLE} AS t\n{jalali_join("t.occurred_at")}')
 
 
+def calculated(field, lo=1390, hi=1420):
+    app = Flask(__name__)
+    app.config['JALALI'] = {'sql_min_year': lo, 'sql_max_year': hi}
+    with app.app_context():
+        return jalali('occurred_at', field)
+
+
 def queries():
     narrow, wide = dataset(1400, 1410), dataset(1390, 1420)
+    label, day, year = calculated('month_label'), calculated('date'), calculated('year')
     return [
         ('count, 1-month date filter (1390-1420)',
          f'SELECT count(*) FROM ({wide}) AS v WHERE {MONTH}'),
@@ -43,6 +53,14 @@ def queries():
          f'SELECT jalali_month_label, count(*) FROM ({wide}) AS v GROUP BY 1'),
         ('count, WHERE jalali_year = 1403 (1390-1420)',
          f'SELECT count(*) FROM ({wide}) AS v WHERE jalali_year = 1403'),
+        ('calculated: group by jalali_date, 1-month filter (1390-1420)',
+         f'SELECT {day}, count(*) FROM {TABLE} WHERE {MONTH} GROUP BY {day}'),
+        ('calculated: group by jalali_month_label, all rows (1400-1410)',
+         f"SELECT {calculated('month_label', 1400, 1410)}, count(*) FROM {TABLE} GROUP BY {calculated('month_label', 1400, 1410)}"),
+        ('calculated: group by jalali_month_label, all rows (1390-1420)',
+         f'SELECT {label}, count(*) FROM {TABLE} GROUP BY {label}'),
+        ('calculated: count, WHERE jalali_year = 1403 (1390-1420)',
+         f'SELECT count(*) FROM {TABLE} WHERE {year} = 1403'),
         ('plain SQL: group by month, all rows',
          f"SELECT date_trunc('month', occurred_at), count(*) FROM {TABLE} GROUP BY 1"),
     ]

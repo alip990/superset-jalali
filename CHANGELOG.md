@@ -42,5 +42,12 @@
   runtime verification remains pending.
 - Column arguments accept double-quoted identifiers for mixed-case PostgreSQL
   columns.
-- Faster year join: equality join on the Gregorian year instead of a range join
-  (about 2-16x faster on large tables in local benchmarks).
+- The year join is an equality join on the Gregorian year, which PostgreSQL
+  runs as a hash join with one lookup per row.
+- `jalali(col, field)` Jinja function for dataset calculated columns.
+- Add Jalali columns page and CLI: creates calculated columns on physical
+  datasets (`/superset-jalali/columns/`, Settings → Data → Jalali columns,
+  `superset jalali add-columns|remove-columns`); `columns_ui_enabled` switch.
+- Refactor: one shared builder for all Jalali field formulas.
+- `init_jalali(globals(), datefilter=False)` registers the blueprint for the
+  columns page and turns the picker off with `datefilter_enabled = False`.

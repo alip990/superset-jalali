@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ستون‌های جلالی</title>
+<style>
+  body { font-family: Tahoma, "Segoe UI", "Noto Sans Arabic", system-ui, sans-serif; margin: 0; background: #f6f7f9; color: #1f2328; line-height: 1.8; }
+  main { max-width: 760px; margin: 32px auto; padding: 24px 28px; background: #fff; border: 1px solid #d0d7de; border-radius: 8px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.lead { margin: 0 0 20px; color: #57606a; }
+  label.row { display: block; margin: 14px 0 4px; font-weight: bold; }
+  select, input[type=text] { font: inherit; width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #8c959f; border-radius: 6px; background: #fff; }
+  fieldset { border: 1px solid #d0d7de; border-radius: 6px; margin: 14px 0 0; padding: 8px 12px; }
+  legend { font-weight: bold; padding: 0 6px; }
+  #fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 16px; }
+  #fields label { display: flex; gap: 6px; align-items: baseline; }
+  code, .ltr { direction: ltr; unicode-bidi: embed; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em; }
+  .hint { color: #57606a; font-size: 0.9em; margin: 4px 0 0; }
+  .actions { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; }
+  button { font: inherit; padding: 8px 18px; border-radius: 6px; border: 1px solid #1f6feb; background: #1f6feb; color: #fff; cursor: pointer; }
+  button.secondary { background: #fff; color: #cf222e; border-color: #cf222e; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #result { margin-top: 20px; padding: 12px 14px; border-radius: 6px; display: none; white-space: pre-line; }
+  #result.ok { display: block; background: #dafbe1; border: 1px solid #4ac26b; }
+  #result.error { display: block; background: #ffebe9; border: 1px solid #ff8182; }
+  #existing { margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ستون‌های جلالی</h1>
+  <p class="lead">ستون‌های محاسبه‌شدهٔ جلالی را بدون نوشتن SQL به یک دیتاست PostgreSQL اضافه کنید.</p>
+
+  <label class="row" for="dataset">دیتاست</label>
+  <select id="dataset"><option value="">در حال بارگذاری…</option></select>
+
+  <label class="row" for="column">ستون تاریخ</label>
+  <select id="column"></select>
+  <p class="hint" id="existing"></p>
+
+  <fieldset>
+    <legend>ستون‌ها</legend>
+    <div id="fields"></div>
+  </fieldset>
+
+  <label class="row" for="prefix">پیشوند نام ستون‌ها</label>
+  <input type="text" id="prefix" value="jalali_" class="ltr" autocomplete="off">
+
+  <label class="row" for="tz">منطقهٔ زمانی</label>
+  <select id="tz">
+    <option value="">بدون تبدیل</option>
+    <option value="Asia/Tehran">Asia/Tehran</option>
+  </select>
+  <p class="hint">‏Asia/Tehran فقط برای ستون‌های <code>timestamptz</code> است؛ برای <code>timestamp</code> و <code>date</code> «بدون تبدیل» را بگذارید.</p>
+
+  <div class="actions">
+    <button type="button" id="add">افزودن ستون‌های جلالی</button>
+    <button type="button" id="remove" class="secondary">حذف ستون‌های جلالی</button>
+  </div>
+  <div id="result" role="status" aria-live="polite"></div>
+</main>
+<script type="application/json" id="field-list">{{fields}}</script>
+<script src="columns.js" nonce="{{csp_nonce}}"></script>
+</body>
+</html>
