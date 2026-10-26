@@ -230,3 +230,13 @@ def test_values_rows_cover_the_window_once_per_gregorian_year(lo, hi):
         else:
             assert year is None, day
         day += timedelta(1 if lo != 1350 or hi != 1550 else 7)
+
+
+ALIASES = ['jalali_year', 'jalali_month_num', 'jalali_day', 'jalali_date', 'jalali_date_int', 'jalali_month',
+           'jalali_month_name', 'jalali_month_label', 'jalali_season', 'jalali_season_key',
+           'jalali_weekday', 'jalali_weekday_num', 'jalali_week_start']
+
+
+def test_columns_keep_their_names_and_order():
+    tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d'), read='postgres')
+    assert [column.alias for column in tree.expressions] == ALIASES
