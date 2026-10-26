@@ -44,3 +44,10 @@
   columns.
 - The year join is an equality join on the Gregorian year, which PostgreSQL
   runs as a hash join with one lookup per row.
+- `jalali(col, field)` Jinja function for dataset calculated columns.
+- Add Jalali columns page and CLI: creates calculated columns on physical
+  datasets (`/superset-jalali/columns/`, Settings → Data → Jalali columns,
+  `superset jalali add-columns|remove-columns`); `columns_ui_enabled` switch.
+- Refactor: one shared builder for all Jalali field formulas.
+- `init_jalali(globals(), datefilter=False)` registers the blueprint for the
+  columns page and turns the picker off with `datefilter_enabled = False`.

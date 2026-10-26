@@ -81,5 +81,37 @@ guest tokens or other credentials.
   month, weekday and Saturday week-start columns as well. The join and columns
   must share the timezone; do not set it on plain `timestamp` or `date` columns.
 
+## Jalali calculated columns
+
+Use a PostgreSQL table with a `timestamp` column, with
+`ENABLE_TEMPLATE_PROCESSING` on and `superset init` run after installing.
+
+- [ ] **Physical dataset.** Datasets → + Dataset → pick the table.
+- [ ] **Add.** Open **Settings → Data → Jalali columns** (or
+  `/superset-jalali/columns/`), choose the dataset and date column, click
+  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 13
+  `jalali_*` columns with Persian labels; no browser console or CSP errors.
+- [ ] **Explore.** Bar chart, X-axis `jalali_month_label`, metric `COUNT(*)`,
+  sorted by `jalali_month`. Values match the same chart on a virtual dataset of
+  the same table built with `jalali_columns` + `jalali_join`; the generated SQL
+  has no join and filters the real date column.
+- [ ] **Dashboard.** Add the chart to a dashboard with a Jalali Time range
+  filter on the real date column; picking a Jalali month filters it correctly.
+- [ ] **Embedded.** An embedded dashboard (guest token) on that dataset renders
+  the calculated columns.
+- [ ] **Permissions.** A non-owner Gamma (or Alpha) user gets 403 from add and
+  remove and sees no datasets on the page; a guest token cannot open the page
+  or its API (403).
+- [ ] **Conflict.** Create a manual calculated column `jalali_year` first; the
+  page reports a 409 listing it and changes nothing.
+- [ ] **Remove.** «حذف ستون‌های جلالی» removes only the plugin's columns; the
+  manual column stays.
+- [ ] **CLI.** `superset jalali add-columns --dataset <schema.table> --column <col>`
+  and `superset jalali remove-columns ...` on the same dataset print the
+  created/updated/removed names.
+- [ ] **Switches.** `JALALI["columns_ui_enabled"] = False` returns 404 for the
+  page and API and hides the menu link; with template processing off, adding
+  is refused with a message.
+
 Release only after all applicable checks pass. Update the README compatibility
 status with the tested patch version and verification date.

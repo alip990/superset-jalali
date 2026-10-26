@@ -4,6 +4,11 @@ A step-by-step guide to adding Jalali (Persian calendar) columns to Superset
 datasets on PostgreSQL. For installation of the package and the dashboard date
 picker, see the [README](../README.md).
 
+No SQL needed? For a table picked in **Datasets → + Dataset**, use the
+**Jalali columns** page or CLI instead: see
+[Jalali columns without SQL](../README.md#jalali-columns-without-sql). This
+guide covers the faster virtual-dataset macros.
+
 ## 1. Enable the macros
 
 In `superset_config.py`, enable Jinja templating and register the package as the
