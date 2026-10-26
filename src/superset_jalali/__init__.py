@@ -1,6 +1,7 @@
 """Configure Superset without rebuilding its frontend."""
 import logging
 from .blueprint import blueprint
+from . import cli  # noqa: F401  adds `superset jalali ...` commands to the blueprint
 from .calendar import g2j, j2g
 from .macros import jalali, jalali_columns, jalali_join
 

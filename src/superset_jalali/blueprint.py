@@ -10,7 +10,7 @@ from . import superset_ops
 from .columns import FIELDS, ColumnsError
 
 STATIC_DIR = Path(__file__).with_name('static')
-blueprint = Blueprint('superset_jalali', __name__)
+blueprint = Blueprint('superset_jalali', __name__, cli_group='jalali')
 
 
 def _manifest_bundle():
