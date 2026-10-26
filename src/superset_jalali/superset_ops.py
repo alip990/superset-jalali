@@ -11,7 +11,7 @@ class NotFoundError(ColumnsError):
 
 
 def _column(column):
-    return dict(id=column.id, column_name=column.column_name, type=column.type, is_dttm=column.is_dttm,
+    return dict(column_name=column.column_name, type=column.type, is_dttm=column.is_dttm,
                 expression=column.expression, extra=column.extra)
 
 

@@ -42,5 +42,5 @@
   runtime verification remains pending.
 - Column arguments accept double-quoted identifiers for mixed-case PostgreSQL
   columns.
-- Faster year join: equality join on the Gregorian year instead of a range join
-  (about 2-16x faster on large tables in local benchmarks).
+- The year join is an equality join on the Gregorian year, which PostgreSQL
+  runs as a hash join with one lookup per row.
