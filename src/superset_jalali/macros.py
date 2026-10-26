@@ -106,3 +106,23 @@ def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits
     start = f'(CASE WHEN {after} THEN {alias}.nowruz ELSE {alias}.prev_nowruz END)'
     expressions = _field_expressions(date, y, start, _digits(digits))
     return ',\n'.join(f'{expr} AS {_identifier(prefix + key)}' for key, expr in expressions.items())
+
+
+def jalali(col: str, field: str, *, tz=None, digits=None) -> str:
+    """One Jalali field as a single expression, e.g. for a dataset calculated column."""
+    col = _identifier(col, dotted=True)
+    date = _date_expression(col, tz)
+    digits = _digits(digits)
+    rows = _year_rows(*_window())
+    gyear = f'EXTRACT(YEAR FROM {date})::int'
+    def lookup(index):
+        # The year table as CASE lists of literals; years without a value fall through to NULL.
+        return f'(CASE {gyear} ' + ' '.join(f'WHEN {row[0]} THEN {row[index]}' for row in rows if row[index] != 'NULL') + ' END)'
+    nowruz, prev_nowruz, year_after, year_before = (lookup(index) for index in range(1, 5))
+    after = f'{date} >= {nowruz}'
+    y = f'(CASE WHEN {after} THEN {year_after} ELSE {year_before} END)'
+    start = f'(CASE WHEN {after} THEN {nowruz} ELSE {prev_nowruz} END)'
+    expressions = _field_expressions(date, y, start, digits)
+    if field not in expressions:
+        raise ValueError(f'Invalid Jalali field {field!r}; use one of: {", ".join(expressions)}')
+    return expressions[field]

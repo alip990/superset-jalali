@@ -2,10 +2,10 @@
 import logging
 from .blueprint import blueprint
 from .calendar import g2j, j2g
-from .macros import jalali_columns, jalali_join
+from .macros import jalali, jalali_columns, jalali_join
 
-JINJA_ADDONS = {'jalali_columns': jalali_columns, 'jalali_join': jalali_join, 'g2j': g2j, 'j2g': j2g}
-__all__ = ['init_jalali', 'JINJA_ADDONS', 'blueprint', 'g2j', 'j2g']
+JINJA_ADDONS = {'jalali': jalali, 'jalali_columns': jalali_columns, 'jalali_join': jalali_join, 'g2j': g2j, 'j2g': j2g}
+__all__ = ['init_jalali', 'JINJA_ADDONS', 'blueprint', 'jalali', 'jalali_columns', 'jalali_join', 'g2j', 'j2g']
 
 
 def _check_discovery_route(app):

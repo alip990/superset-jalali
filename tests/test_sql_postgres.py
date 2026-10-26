@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import pytest
 from flask import Flask
 from superset_jalali.calendar import g2j
-from superset_jalali.macros import jalali_columns, jalali_join
+from superset_jalali.macros import jalali, jalali_columns, jalali_join
 from superset_jalali.names import MONTHS, SEASONS, WEEKDAYS
 
 pytestmark = pytest.mark.skipif(not os.environ.get('PG_DSN'), reason='PG_DSN is not set')
@@ -97,3 +97,51 @@ def test_join_keeps_the_row_count(conn):
         assert 'Hash' in plan and 'Join Filter' not in plan
     finally:
         conn.execute('DROP TABLE jalali_rows')
+
+
+def _both(source, lo=1390, hi=1420, **kwargs):
+    """Join-path columns followed by the same 13 fields from jalali(), one row per source row."""
+    app = Flask(__name__)
+    app.config['JALALI'] = dict(sql_min_year=lo, sql_max_year=hi)
+    with app.app_context():
+        single = ', '.join(f'{jalali("t.d", name.removeprefix("jalali_"), **kwargs)} AS single_{name}' for name in COLUMNS)
+        return (f'SELECT t.d, {jalali_columns("t.d", **kwargs)}, {single}\n'
+                f'FROM {source} AS t\n{jalali_join("t.d", tz=kwargs.get("tz"))} ORDER BY 1')
+
+
+def _mismatches(rows):
+    width = len(COLUMNS)
+    return [(row[0], name, row[1 + i], row[1 + width + i])
+            for row in rows for i, name in enumerate(COLUMNS) if row[1 + i] != row[1 + width + i]]
+
+
+@pytest.mark.parametrize('lo,hi,digits', [(1390, 1420, 'latin'), (1400, 1410, 'latin'), (1403, 1403, 'latin'),
+                                          (1390, 1420, 'persian')])
+def test_single_expression_equals_join_on_every_day(conn, lo, hi, digits):
+    source = (f"(SELECT generate_series('{FIRST}'::timestamp, '{LAST}', '1 day')"
+              " + interval '23 hours 59 minutes' AS d UNION ALL SELECT NULL)")
+    rows = conn.execute(_both(source, lo, hi, digits=digits)).fetchall()
+    assert len(rows) == (LAST - FIRST).days + 2
+    assert any(row[1] is None for row in rows) and any(row[1] is not None for row in rows)
+    assert _mismatches(rows) == []
+
+
+def test_single_expression_equals_join_for_timestamptz_in_tehran(conn):
+    source = ("(SELECT generate_series(timestamptz '2025-03-19 21:00:00+00', timestamptz '2025-03-21 21:00:00+00',"
+              " interval '30 minutes') AS d)")
+    rows = conn.execute(_both(source, tz='Asia/Tehran')).fetchall()
+    assert len(rows) == 97 and _mismatches(rows) == []
+    by_instant = {row[0].isoformat(): row[4] for row in rows}
+    assert by_instant['2025-03-20T21:00:00+00:00'] == '1404/01/01'
+    assert by_instant['2025-03-20T20:00:00+00:00'] == '1403/12/30'
+
+
+def test_single_expression_on_a_table_without_alias(conn):
+    conn.execute('CREATE TEMP TABLE "MixedCase"("OccouredDate" timestamp)')
+    try:
+        conn.execute('''INSERT INTO "MixedCase" VALUES ('2025-03-21 08:00'), ('2024-10-09 23:59'), (NULL)''')
+        label = jalali('"OccouredDate"', 'month_label')
+        rows = conn.execute(f'SELECT {label} FROM "MixedCase" ORDER BY "OccouredDate"').fetchall()
+        assert rows == [('1403-07 مهر',), ('1404-01 فروردین',), (None,)]
+    finally:
+        conn.execute('DROP TABLE "MixedCase"')

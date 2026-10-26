@@ -1,7 +1,7 @@
 import pytest
 import sqlglot
 from flask import Flask
-from superset_jalali.macros import jalali_columns, jalali_join
+from superset_jalali.macros import jalali, jalali_columns, jalali_join
 
 
 def test_sql_parses_and_columns():
@@ -240,3 +240,57 @@ ALIASES = ['jalali_year', 'jalali_month_num', 'jalali_day', 'jalali_date', 'jala
 def test_columns_keep_their_names_and_order():
     tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d'), read='postgres')
     assert [column.alias for column in tree.expressions] == ALIASES
+
+
+@pytest.mark.parametrize('field', [alias.removeprefix('jalali_') for alias in ALIASES])
+def test_single_field_is_one_expression(field):
+    from sqlglot import exp
+    sql = jalali('t.d', field)
+    tree = sqlglot.parse_one(f'SELECT {sql} AS v FROM events t', read='postgres')
+    assert not list(tree.find_all(exp.Join, exp.Subquery, exp.Values))
+    assert isinstance(tree.expressions[0].this, exp.Case)
+    assert 'make_date' not in sql and "DATE '2024-03-20'" in sql
+    year = tree.expressions[0].this.args['ifs'][0].this
+    assert isinstance(year, exp.Is) and year.this.unnest().sql(dialect='postgres').startswith(
+        _postgres('CASE WHEN (t.d)::date >= (CASE EXTRACT(YEAR FROM (t.d)::date)::int WHEN 2011 THEN 1 END) THEN 1 END')[:60])
+
+
+def test_single_field_rejects_unknown_fields_and_identifiers():
+    for field in ['years', 'jalali_year', '', 'YEAR', None]:
+        with pytest.raises(ValueError, match='month_label'): jalali('t.d', field)
+    for bad in QUOTED_BAD + ['x;drop table t', '']:
+        with pytest.raises(ValueError): jalali(bad, 'year')
+
+
+def test_single_field_quotes_mixed_case_columns():
+    sql = jalali('t."OccouredDate"', 'month_label')
+    assert '(t."OccouredDate")::date' in sql and 'OccouredDate)' not in sql
+    sqlglot.parse_one(f'SELECT {jalali(chr(34) + "OccouredDate" + chr(34), "date")} FROM "MixedCase"', read='postgres')
+
+
+@pytest.mark.parametrize('bad', ["Asia/Tehran'; drop", 'x y', '', 1, True])
+def test_single_field_timezone_and_digits_match_jalali_columns(bad):
+    with pytest.raises(ValueError): jalali('t.d', 'date', tz=bad)
+    with pytest.raises(ValueError): jalali('t.d', 'date', digits='bad')
+    assert "((t.d) AT TIME ZONE 'Asia/Tehran')::date" in jalali('t.d', 'date', tz='Asia/Tehran')
+    assert 'translate(' in jalali('t.d', 'date', digits='persian')
+    assert 'translate(' not in jalali('t.d', 'date_int', digits='persian')
+    app = _window(1403, 1404)
+    app.config['JALALI'].update(sql_timezone='UTC', sql_digits='persian')
+    with app.app_context():
+        sql = jalali('t.d', 'month')
+        assert "AT TIME ZONE 'UTC'" in sql and 'translate(' in sql and 'THEN 1402' not in sql
+        app.config['JALALI']['sql_max_year'] = 1551
+        with pytest.raises(ValueError): jalali('t.d', 'year')
+
+
+@pytest.mark.parametrize('lo,hi', [(1390, 1420), (1350, 1351), (1549, 1550)])
+def test_single_field_year_lists_match_the_join_table(lo, hi):
+    with _window(lo, hi).app_context():
+        rows, sql = _values(jalali_join('t.d')), jalali('t.d', 'day')
+    for index in range(1, 5):
+        listed = [(row[0], row[index]) for row in rows if row[index] is not None]
+        for gyear, value in listed:
+            literal = f"DATE '{value}'" if index < 3 else str(value)
+            assert f'WHEN {gyear} THEN {literal}' in sql
+    assert 'THEN NULL' not in sql
