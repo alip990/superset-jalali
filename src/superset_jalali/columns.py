@@ -69,7 +69,7 @@ def plan_columns(existing_columns, source_column, fields=None, prefix='jalali_',
     names = [field.name for field in FIELDS]
     if fields is None:
         fields = names
-    if isinstance(fields, str) or not fields or any(field not in names for field in fields):
+    if not isinstance(fields, (list, tuple)) or not fields or any(field not in names for field in fields):
         raise ColumnsError(f'Invalid fields {fields!r}; use some of: {", ".join(names)}')
     if not isinstance(prefix, str) or (prefix and not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', prefix)):
         raise ColumnsError(f'Invalid prefix {prefix!r}: use letters, digits and underscores')

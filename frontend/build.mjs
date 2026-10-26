@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { readFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, rm, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 const root = new URL('../', import.meta.url);
 const config = await readFile(new URL('pyproject.toml', root), 'utf8');
@@ -12,8 +12,9 @@ if (!js) throw new Error('Bundle not produced');
 const size = gzipSync(js.contents).length;
 if (size > 60 * 1024) throw new Error(`Bundle exceeds 60 KB gzipped: ${size}`);
 if (Object.keys(result.metafile.inputs).some(p => /node_modules\/(react|react-dom|antd)\//.test(p))) throw new Error('Forbidden bundled dependency');
-await rm(outdir, {recursive:true, force:true});
 await mkdir(outdir, {recursive:true});
+// Replace earlier bundles only; columns.html and columns.js are committed sources.
+for (const name of await readdir(outdir)) if (/^jalali-|^manifest\.json$/.test(name)) await rm(outdir + name);
 for (const file of result.outputFiles) await writeFile(file.path, file.contents);
 const bundle = js.path.split('/').pop();
 await writeFile(`${outdir}/manifest.json`, JSON.stringify({bundle, version})+'\n');

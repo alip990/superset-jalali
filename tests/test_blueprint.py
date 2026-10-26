@@ -169,3 +169,53 @@ def test_invalid_manifest_and_script_root(app):
     assert client.get('/dynamic-plugins/api/read', headers={'X-Test-Guest':'yes'}).json == {'result': []}
     (bp.STATIC_DIR / 'manifest.json').write_text(json.dumps({'bundle':'../outside.js'}))
     assert client.get('/dynamic-plugins/api/read', headers={'X-Test-Guest':'yes'}).json == {'result': []}
+
+
+def test_macros_only_registers_the_page_with_the_picker_off():
+    config = {'JALALI': {'sql_min_year': 1400}}
+    init_jalali(config, datefilter=False)
+    assert config['BLUEPRINTS'] == [bp.blueprint]
+    assert config['JALALI'] == {'sql_min_year': 1400, 'datefilter_enabled': False}
+    assert 'FEATURE_FLAGS' not in config and 'jalali' in config['JINJA_CONTEXT_ADDONS']
+
+
+def _fake_superset(monkeypatch):
+    import sys, types
+    links = []
+    class AppBuilder:
+        def add_link(self, name, **kwargs):
+            links.append((name, kwargs))
+    module = types.ModuleType('superset.extensions')
+    module.appbuilder = AppBuilder()
+    monkeypatch.setitem(sys.modules, 'superset', types.ModuleType('superset'))
+    monkeypatch.setitem(sys.modules, 'superset.extensions', module)
+    babel = types.ModuleType('flask_babel')
+    babel.lazy_gettext = lambda text: text
+    monkeypatch.setitem(sys.modules, 'flask_babel', babel)
+    return links
+
+
+@pytest.mark.parametrize('root,href', [('/', '/superset-jalali/columns/'), ('/analytics/', '/analytics/superset-jalali/columns/')])
+def test_mutator_adds_the_columns_menu_link(monkeypatch, caplog, root, href):
+    links = _fake_superset(monkeypatch)
+    config = {}
+    init_jalali(config)
+    app = Flask(__name__)
+    app.config['APPLICATION_ROOT'] = root
+    config['FLASK_APP_MUTATOR'](app)
+    assert [(name, kwargs['href'], kwargs['category'], str(kwargs['category_label'])) for name, kwargs in links] == [
+        ('Jalali columns', href, 'Data', 'Data')]
+    app.config['JALALI'] = {'columns_ui_enabled': False}
+    config['FLASK_APP_MUTATOR'](app)
+    assert len(links) == 1
+    init_jalali(config := {}, macros=False)
+    config['FLASK_APP_MUTATOR'](app)
+    assert len(links) == 1
+
+
+def test_menu_link_failure_is_logged(caplog):
+    config = {}
+    init_jalali(config)
+    with caplog.at_level(logging.ERROR):
+        config['FLASK_APP_MUTATOR'](Flask(__name__))
+    assert any('menu link' in record.getMessage() for record in caplog.records)
