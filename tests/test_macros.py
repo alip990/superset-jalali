@@ -7,7 +7,7 @@ from superset_jalali.macros import jalali, jalali_columns, jalali_join
 def test_sql_parses_and_columns():
     sql = f'SELECT t.*, {jalali_columns("t.created_at")} FROM events t {jalali_join("t.created_at")}'
     tree = sqlglot.parse_one(sql, read='postgres')
-    assert len(tree.expressions) == 14
+    assert len(tree.expressions) == 16
     assert 'jalali_week_start' in sql
     assert 'LEFT JOIN' in sql
     assert '1390' in sql and '1421' not in sql
@@ -45,7 +45,7 @@ def test_quoted_column_is_emitted_verbatim():
         assert '(t."OccouredDate")::date' in sql
         assert 't.OccouredDate' not in sql and 'occoureddate' not in sql
     tree = sqlglot.parse_one(f'SELECT t.*, {cols} FROM "CR"."DeviceCrime" t {join}', read='postgres')
-    assert len(tree.expressions) == 14
+    assert len(tree.expressions) == 16
     columns = {column.sql(dialect='postgres') for column in tree.find_all(sqlglot.exp.Column) if column.table == 't'}
     assert columns == {'t.*', 't."OccouredDate"'}
 
@@ -234,7 +234,7 @@ def test_values_rows_cover_the_window_once_per_gregorian_year(lo, hi):
 
 ALIASES = ['jalali_year', 'jalali_month_num', 'jalali_day', 'jalali_date', 'jalali_date_int', 'jalali_month',
            'jalali_month_name', 'jalali_month_label', 'jalali_season', 'jalali_season_key',
-           'jalali_weekday', 'jalali_weekday_num', 'jalali_week_start']
+           'jalali_weekday', 'jalali_weekday_num', 'jalali_week_start', 'jalali_week_start_date', 'jalali_weekday_key']
 
 
 def test_columns_keep_their_names_and_order():

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — unreleased
+
+- New fields `week_start_date` (Jalali date of the week's Saturday, e.g.
+  `1403/07/14`; sorts as text, for weekly charts) and `weekday_key`
+  (`1 شنبه` … `7 جمعه`, sorts Saturday→Friday) in `jalali_columns()`,
+  `jalali()`, the Jalali columns page and the CLI. Existing fields are
+  unchanged; `week_start` stays a `DATE`. `week_start_date` is NULL when the
+  Saturday falls before `sql_min_year`.
+
 ## 0.1.0 — unreleased
 
 - Persian RTL, Saturday-first Jalali picker for dashboard Time range native

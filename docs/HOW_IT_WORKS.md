@@ -103,11 +103,17 @@ evaluates `G` once per simple `CASE`.
 
 ### One definition of each field
 
-`_field_expressions(date, year, start, digits)` is the only code that knows how
-to compute the 13 fields (month and day from the day of year, season, weekday,
-labels, Persian digits, week start, the NULL wrapper). `jalali_columns()` calls
-it with the year and Nowruz taken from the join alias; `jalali()` calls it with
-the `CASE` expressions above. `tests/test_sql_postgres.py` compares both paths
+`_field_expressions(date, nowruz, prev_nowruz, year_after, year_before, digits)`
+is the only code that knows how to compute the 15 fields (month and day from the
+day of year, season, weekday, labels, Persian digits, week start, the NULL
+wrapper). It receives the four values of the row's year-table entry, not an
+already chosen year, so it can convert a second date with the same entry:
+the Saturday `W = D - weekday` behind `week_start_date`. `W` can be in the
+previous Jalali year (1403/01/01 is a Wednesday; its Saturday is 1402/12/26)
+or the previous Gregorian year (2025-01-02 → 2024-12-28), but
+`W >= D - 6 >= 1 January - 6 > prev_nowruz`, so `W >= NZ ? year_after :
+year_before` and the matching Nowruz are still correct. `jalali_columns()`
+passes the join alias's columns; `jalali()` passes the `CASE` expressions above. `tests/test_sql_postgres.py` compares both paths
 for every day from 1985 to 2045 in three year windows, with Persian digits and
 for `timestamptz` in Tehran. The single expression is longer (up to about 25 KB
 for `month_label`) and about 2-2.5x slower on full-history aggregations; see

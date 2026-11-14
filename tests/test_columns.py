@@ -22,7 +22,7 @@ def test_fields_follow_jalali_columns():
     import sqlglot
     tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d'), read='postgres')
     assert ['jalali_' + field.name for field in FIELDS] == [column.alias for column in tree.expressions]
-    assert len({field.label for field in FIELDS}) == 13
+    assert len({field.label for field in FIELDS}) == 15
 
 
 def test_plan_for_a_plain_column():
@@ -37,7 +37,10 @@ def test_plan_for_a_plain_column():
     types = {column['column_name']: column['type'] for column in plan}
     assert types['jalali_date'] == 'VARCHAR' and types['jalali_week_start'] == 'DATE'
     assert types['jalali_weekday_num'] == 'INTEGER'
-    assert plan[-2]['verbose_name'] == 'شماره روز هفته (شنبه = ۰)'
+    assert types['jalali_week_start_date'] == 'VARCHAR' and types['jalali_weekday_key'] == 'VARCHAR'
+    assert [column['column_name'] for column in plan[-3:]] == ['jalali_week_start', 'jalali_week_start_date', 'jalali_weekday_key']
+    assert plan[-4]['verbose_name'] == 'شماره روز هفته (شنبه = ۰)'
+    assert plan[-2]['verbose_name'] == 'شروع هفته (تاریخ جلالی)' and plan[-1]['verbose_name'] == 'روز هفته (مرتب)'
     for column in plan:
         field = column['column_name'].removeprefix('jalali_')
         assert _render(column['expression']) == jalali('occurred_at', field)

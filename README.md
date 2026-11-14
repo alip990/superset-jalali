@@ -107,7 +107,7 @@ PostgreSQL session, and source-data timezones.
 ## Jalali columns without SQL
 
 A dataset created from a table in **Datasets → + Dataset** (a physical
-dataset) can get Jalali columns in one click. The plugin adds up to 13
+dataset) can get Jalali columns in one click. The plugin adds up to 15
 **calculated columns** to the dataset; each one is a single expression that
 calls the `jalali(col, field)` Jinja function, for example
 `{{ jalali('"OccouredDate"', 'month_label') }}`. Nobody types SQL.
@@ -155,7 +155,7 @@ large tables prefer the virtual dataset.
 1. Open **Settings → Data → Jalali columns**, or `/superset-jalali/columns/`.
 2. Choose the dataset and its date column. Only PostgreSQL datasets you may
    edit, and their physical date/timestamp columns, are listed.
-3. Keep all 13 fields checked (or pick some), keep the prefix `jalali_`.
+3. Keep all 15 fields checked (or pick some), keep the prefix `jalali_`.
    Choose timezone **Asia/Tehran** only for `timestamptz` columns.
 4. Click «افزودن ستون‌های جلالی». The columns appear in **Edit dataset →
    Calculated columns**. «حذف ستون‌های جلالی» removes only the columns the
@@ -189,11 +189,23 @@ superset jalali remove-columns --dataset CR.DeviceCrime --column OccouredDate
 | `jalali_weekday` | VARCHAR | روز هفته | چهارشنبه |
 | `jalali_weekday_num` | INTEGER | شماره روز هفته (شنبه = ۰) | 4 |
 | `jalali_week_start` | DATE | شروع هفته (شنبه) | 2024-10-05 |
+| `jalali_week_start_date` | VARCHAR | شروع هفته (تاریخ جلالی) | 1403/07/14 |
+| `jalali_weekday_key` | VARCHAR | روز هفته (مرتب) | 5 چهارشنبه |
 
 The Persian name is the column's label in Explore. Values follow the
 `sql_min_year`/`sql_max_year` window, `sql_digits` and `sql_timezone` settings,
 and are NULL for NULL dates or dates outside the window, exactly as in the
 virtual-dataset macros.
+
+`jalali_week_start_date` is the Jalali date of the Saturday that starts the
+row's week, formatted like `jalali_date`; it sorts correctly as text, so use it
+for weekly charts. It is NULL when that Saturday falls before `sql_min_year`
+(the first days of the window), even if the row's own date is inside it.
+`jalali_week_start` stays a real `DATE` for date maths: Superset formats every
+`DATE` in Gregorian, and it must not be used with the **Week** time grain,
+which moves it to Monday.
+`jalali_weekday_key` (`1 شنبه` … `7 جمعه`) sorts Saturday→Friday, unlike the
+plain weekday names.
 
 ### Rules
 
@@ -250,6 +262,8 @@ window, and NULL source dates, produce NULL in **all** derived columns.
 | `jalali_weekday` | text | چهارشنبه |
 | `jalali_weekday_num` | integer | 4 (Saturday=0) |
 | `jalali_week_start` | date | 2024-10-05 (Saturday, Gregorian date) |
+| `jalali_week_start_date` | text | 1403/07/14 (the same Saturday, Jalali) |
+| `jalali_weekday_key` | text | 5 چهارشنبه (sorts Saturday→Friday) |
 
 `jalali_season_key` combines the year, season number (1–4) and Persian name,
 for example `1403-3 پاییز`. It sorts chronologically and reads well as a chart
@@ -277,7 +291,7 @@ avoid dataset collisions.
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
 
-`jalali(col, field, tz=None, digits=None)` returns one of the 13 fields as a
+`jalali(col, field, tz=None, digits=None)` returns one of the 15 fields as a
 single expression, with no join, for calculated columns or any SQL where a join
 is not possible. `field` is a column name without the prefix, such as `year`
 or `month_label`; other arguments behave as in `jalali_columns`. Its values

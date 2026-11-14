@@ -37,7 +37,7 @@ FROM my_table AS t
 {{ jalali_join('t.created_at') }}
 ```
 
-- `jalali_columns(...)` goes in the `SELECT` list and adds 13 columns.
+- `jalali_columns(...)` goes in the `SELECT` list and adds 15 columns.
 - `jalali_join(...)` goes after the `FROM` table and adds a small inline year
   table. It creates no database objects.
 - Use `t.*`, not `*`: the join adds helper columns (`gyear`, `nowruz`,
@@ -60,10 +60,15 @@ FROM my_table AS t
 | `jalali_season_key` | text | 1403-3 پاییز | Seasonal X axis (sorts correctly) |
 | `jalali_weekday` | text | چهارشنبه | Weekday name |
 | `jalali_weekday_num` | integer | 4 | Weekday order, Saturday = 0 |
-| `jalali_week_start` | date | 2024-10-05 | Weekly grouping (Saturday-based) |
+| `jalali_week_start` | date | 2024-10-05 | Date maths on the Saturday (shown Gregorian by default) |
+| `jalali_week_start_date` | text | 1403/07/14 | Weekly X axis (Saturday, sorts correctly) |
+| `jalali_weekday_key` | text | 5 چهارشنبه | Weekday axis sorted Saturday→Friday |
 
-All 13 columns are NULL when the source date is NULL or falls outside the
-configured year window (default 1390–1420).
+All 15 columns are NULL when the source date is NULL or falls outside the
+configured year window (default 1390–1420). `jalali_week_start_date` is also
+NULL when the row's Saturday falls before `sql_min_year`: for example
+1403/01/01 is a Wednesday, so with `sql_min_year: 1403` its week start
+(1402/12/26) is NULL.
 
 ## 3. Build charts
 
@@ -71,8 +76,11 @@ configured year window (default 1390–1420).
   sort by the X axis ascending, metric `COUNT(*)`.
 - **Daily chart:** X axis `jalali_date`, sorted ascending.
 - **Seasonal chart:** X axis `jalali_season_key`.
-- **Weekly chart:** X axis `jalali_week_start`; it is a real date, so Superset's
-  temporal features work on it.
+- **Weekly chart:** X axis `jalali_week_start_date`, sorted ascending. Do not use
+  `jalali_week_start` for this: it is a real date for date maths that Superset
+  shows in Gregorian, and the **Week** time grain moves it to Monday.
+- **Weekday chart:** X axis `jalali_weekday_key` (`1 شنبه` … `7 جمعه`), sorted
+  ascending; plain `jalali_weekday` names sort alphabetically.
 - **Table:** show `jalali_date` next to, or instead of, the Gregorian column.
 
 Keep the dataset's **real date column** (`created_at`) as the temporal column.

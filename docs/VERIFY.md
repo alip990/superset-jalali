@@ -71,8 +71,8 @@ guest tokens or other credentials.
   evaluate correctly, including the final day. Superset's `today` follows the
   server timezone; recommend `TZ=Asia/Tehran`. Calendar presets are fixed ranges.
 - [ ] With template processing explicitly enabled, run a PostgreSQL virtual
-  dataset using both macros. Verify Nowruz, leap Esfand, all 13 columns, Saturday
-  week starts, NULL dates, out-of-window dates and Persian digit formatting.
+  dataset using both macros. Verify Nowruz, leap Esfand, all 15 columns, Saturday
+  week starts (`jalali_week_start_date` is Jalali; 1403/01/01 → 1402/12/26), NULL dates, out-of-window dates and Persian digit formatting.
 - [ ] With a UTC PostgreSQL session and `sql_timezone` unset, test `timestamptz`
   values around Tehran midnight using **both** macros with `tz='Asia/Tehran'`:
   `2025-03-20 20:29:59+00` yields `1403/12/30`, while
@@ -89,7 +89,7 @@ Use a PostgreSQL table with a `timestamp` column, with
 - [ ] **Physical dataset.** Datasets → + Dataset → pick the table.
 - [ ] **Add.** Open **Settings → Data → Jalali columns** (or
   `/superset-jalali/columns/`), choose the dataset and date column, click
-  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 13
+  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 15
   `jalali_*` columns with Persian labels; no browser console or CSP errors.
 - [ ] **Explore.** Bar chart, X-axis `jalali_month_label`, metric `COUNT(*)`,
   sorted by `jalali_month`. Values match the same chart on a virtual dataset of

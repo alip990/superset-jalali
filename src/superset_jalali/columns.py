@@ -20,6 +20,8 @@ FIELDS = (
     Field('weekday', 'VARCHAR', 'روز هفته'),
     Field('weekday_num', 'INTEGER', 'شماره روز هفته (شنبه = ۰)'),
     Field('week_start', 'DATE', 'شروع هفته (شنبه)'),
+    Field('week_start_date', 'VARCHAR', 'شروع هفته (تاریخ جلالی)'),
+    Field('weekday_key', 'VARCHAR', 'روز هفته (مرتب)'),
 )
 MARKER = 'superset_jalali'
 
