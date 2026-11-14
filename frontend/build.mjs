@@ -1,19 +1,21 @@
 import { build } from 'esbuild';
-import { readFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, rm, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
+import { forbidden, options } from './esbuild.options.mjs';
 const root = new URL('../', import.meta.url);
 const config = await readFile(new URL('pyproject.toml', root), 'utf8');
 const version = /^version = "([^"]+)"$/m.exec(config)?.[1];
 if (!version) throw new Error('Version missing from pyproject.toml');
 const outdir = new URL('src/superset_jalali/static/', root).pathname;
-const result = await build({entryPoints:['src/index.ts'], bundle:true, format:'esm', minify:true, sourcemap:true, target:'es2019', jsx:'transform', jsxFactory:'React.createElement', jsxFragment:'React.Fragment', entryNames:'jalali-[hash]', outdir, define:{__VERSION__:JSON.stringify(version)}, write:false, metafile:true});
+const result = await build(options(version, outdir));
 const js = result.outputFiles.find(f => f.path.endsWith('.js'));
 if (!js) throw new Error('Bundle not produced');
 const size = gzipSync(js.contents).length;
 if (size > 60 * 1024) throw new Error(`Bundle exceeds 60 KB gzipped: ${size}`);
-if (Object.keys(result.metafile.inputs).some(p => /node_modules\/(react|react-dom|antd)\//.test(p))) throw new Error('Forbidden bundled dependency');
-await rm(outdir, {recursive:true, force:true});
+if (forbidden(result.metafile.inputs).length) throw new Error('Forbidden bundled dependency');
 await mkdir(outdir, {recursive:true});
+// Replace earlier bundles only; columns.html and columns.js are committed sources.
+for (const name of await readdir(outdir)) if (/^jalali-|^manifest\.json$/.test(name)) await rm(outdir + name);
 for (const file of result.outputFiles) await writeFile(file.path, file.contents);
 const bundle = js.path.split('/').pop();
 await writeFile(`${outdir}/manifest.json`, JSON.stringify({bundle, version})+'\n');

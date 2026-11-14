@@ -1,12 +1,10 @@
 """Table-based calendar conversion, with no runtime calendar dependency."""
 from bisect import bisect_right
 from datetime import date, datetime, timedelta
-import re
 from .nowruz import NOWRUZ
 
 YEARS = tuple(NOWRUZ)
 STARTS = tuple(date.fromisoformat(NOWRUZ[y]) for y in YEARS)
-DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
 
 
 def g2j(value: date) -> tuple[int, int, int]:
@@ -39,11 +37,3 @@ def j2g(year: int, month: int, day: int) -> date:
     offset = (month - 1) * 31 if month <= 6 else 186 + (month - 7) * 30
     return date.fromisoformat(NOWRUZ[year]) + timedelta(days=offset + day - 1)
 
-
-def parse_jalali(value: str) -> tuple[int, int, int]:
-    match = re.fullmatch(r'([0-9]{4})[/-]([0-9]{1,2})[/-]([0-9]{1,2})', value.strip().translate(DIGITS))
-    if not match:
-        raise ValueError('Expected Jalali YYYY/MM/DD')
-    parts = tuple(map(int, match.groups()))
-    j2g(*parts)
-    return parts

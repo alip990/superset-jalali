@@ -4,6 +4,11 @@ A step-by-step guide to adding Jalali (Persian calendar) columns to Superset
 datasets on PostgreSQL. For installation of the package and the dashboard date
 picker, see the [README](../README.md).
 
+No SQL needed? For a table picked in **Datasets → + Dataset**, use the
+**Jalali columns** page or CLI instead: see
+[Jalali columns without SQL](../README.md#jalali-columns-without-sql). This
+guide covers the faster virtual-dataset macros.
+
 ## 1. Enable the macros
 
 In `superset_config.py`, enable Jinja templating and register the package as the
@@ -32,7 +37,7 @@ FROM my_table AS t
 {{ jalali_join('t.created_at') }}
 ```
 
-- `jalali_columns(...)` goes in the `SELECT` list and adds 13 columns.
+- `jalali_columns(...)` goes in the `SELECT` list and adds 15 columns.
 - `jalali_join(...)` goes after the `FROM` table and adds a small inline year
   table. It creates no database objects.
 - Use `t.*`, not `*`: the join adds helper columns (`gyear`, `nowruz`,
@@ -55,10 +60,15 @@ FROM my_table AS t
 | `jalali_season_key` | text | 1403-3 پاییز | Seasonal X axis (sorts correctly) |
 | `jalali_weekday` | text | چهارشنبه | Weekday name |
 | `jalali_weekday_num` | integer | 4 | Weekday order, Saturday = 0 |
-| `jalali_week_start` | date | 2024-10-05 | Weekly grouping (Saturday-based) |
+| `jalali_week_start` | date | 2024-10-05 | Date maths on the Saturday (shown Gregorian by default) |
+| `jalali_week_start_date` | text | 1403/07/14 | Weekly X axis (Saturday, sorts correctly) |
+| `jalali_weekday_key` | text | 5 چهارشنبه | Weekday axis sorted Saturday→Friday |
 
-All 13 columns are NULL when the source date is NULL or falls outside the
-configured year window (default 1390–1420).
+All 15 columns are NULL when the source date is NULL or falls outside the
+configured year window (default 1390–1420). `jalali_week_start_date` is also
+NULL when the row's Saturday falls before `sql_min_year`: for example
+1403/01/01 is a Wednesday, so with `sql_min_year: 1403` its week start
+(1402/12/26) is NULL.
 
 ## 3. Build charts
 
@@ -66,8 +76,13 @@ configured year window (default 1390–1420).
   sort by the X axis ascending, metric `COUNT(*)`.
 - **Daily chart:** X axis `jalali_date`, sorted ascending.
 - **Seasonal chart:** X axis `jalali_season_key`.
-- **Weekly chart:** X axis `jalali_week_start`; it is a real date, so Superset's
-  temporal features work on it.
+- **Weekly chart:** X axis `jalali_week_start_date`, sorted ascending. Do not use
+  `jalali_week_start` for this: it is a real date for date maths, shown in
+  Gregorian unless the chart's time format is a Jalali one
+  ([section 8](#8-jalali-dates-in-charts)), and the **Week** time grain moves it
+  to Monday.
+- **Weekday chart:** X axis `jalali_weekday_key` (`1 شنبه` … `7 جمعه`), sorted
+  ascending; plain `jalali_weekday` names sort alphabetically.
 - **Table:** show `jalali_date` next to, or instead of, the Gregorian column.
 
 Keep the dataset's **real date column** (`created_at`) as the temporal column.
@@ -144,6 +159,10 @@ JALALI = {
 - `timestamptz` columns: set `tz='Asia/Tehran'` in **both** macros (or
   `sql_timezone`). Example: `2025-03-20 21:00:00+00` is 1404/01/01 in Tehran but
   1403/12/30 in UTC.
+- The picker's «با ساعت» times (README, *Time of day*) are wall-clock values:
+  on a `timestamptz` column PostgreSQL compares them in the connection's
+  session timezone, so `08:00` means 08:00 Tehran only if the session timezone
+  is `Asia/Tehran`. On a `date` column leave «با ساعت» off.
 
 ## 7. Performance tips
 
@@ -168,7 +187,69 @@ PG_DSN=postgresql://user:pass@host:5432/db python scripts/bench_macros.py
 python scripts/bench_macros.py --drop   # remove the benchmark table
 ```
 
-## 8. Troubleshooting
+## 8. Jalali dates in charts
+
+### Charts on Jalali text columns
+
+The Jalali columns are text or numbers, so every chart shows them as they are.
+Pick the sortable ones and sort the axis ascending:
+
+- **Heatmap, day × hour** (ECharts *Heatmap*): X axis `hour_of_day`, or a
+  calculated column `EXTRACT(HOUR FROM created_at)`; Y axis `jalali_date`.
+  Sort both axes *Axis ascending*.
+- **Heatmap, weekday × month:** X axis `jalali_weekday_key`
+  (`1 شنبه` … `7 جمعه`), Y axis `jalali_month_label`, both *Axis ascending*.
+  Plain `jalali_weekday` names would sort alphabetically.
+- **Weekly charts:** `jalali_week_start_date`; monthly `jalali_month_label`;
+  seasonal `jalali_season_key`.
+
+### Jalali time formats for real date columns
+
+The bundle registers these ids in Superset's shared time-format registry. Type
+one into a chart's **Time format** box (*Customize*; the box accepts any value):
+
+| Time format | Example |
+| --- | --- |
+| `jalali_date` | `۱۴۰۳/۰۷/۱۴` |
+| `jalali_datetime` | `۱۴۰۳/۰۷/۱۴ ۱۴:۳۰` |
+| `jalali_month` | `مهر ۱۴۰۳` |
+| `jalali_year` | `۱۴۰۳` |
+| `jalali_smart` | like *Adaptive formatting*: `۱۴:۳۰` when not midnight, `۱۴۰۳` on Nowruz, `مهر ۱۴۰۳` on the 1st of a month, else `۱۴۰۳/۰۷/۱۴` |
+
+- **Heatmap or Table on a real date column:** set the time format to
+  `jalali_date`.
+- **Time-series chart (line, bar) on the real date column, time grain Day:**
+  time format `jalali_date` or `jalali_smart`. ECharts places the axis ticks at
+  Gregorian positions; turn on **Force categorical** for exactly one label per
+  bar.
+- **Time grains Month, Quarter and Year** group into Gregorian buckets
+  (`DATE_TRUNC`): a Jalali label would name the Gregorian month's first day.
+  Use `jalali_month_label` or `jalali_season_key` columns on the X axis instead.
+- `jalali_week_start` is a real date: with time format `jalali_date` it shows
+  the Saturday in Jalali. Never use the **Week** time grain on it; that moves
+  it to Monday.
+
+Values are read as wall-clock times, like Superset's default formats. Dates
+outside 1350–1550, NULL and invalid values fall back to Superset's own output.
+
+### Jalali everywhere (optional)
+
+```python
+JALALI = {**JALALI, "jalali_smart_date": True}
+```
+
+replaces Superset's default *Adaptive formatting* (`smart_date`) and its
+detailed and verbose variants with Jalali versions, so every chart that uses the
+default time format (time-series axes and tooltips, Table, Heatmap) shows Jalali
+dates without per-chart settings. Charts with an explicit format such as
+`%Y-%m-%d` keep it. Off by default; restart Superset and reload the page.
+
+In Explore, a chart can render before the plugin bundle has loaded, and then
+shows `jalali_date` literally (or Gregorian dates in the global mode) until it
+renders again (Run, a control change, a resize). Dashboards wait for the bundle
+and are not affected; see [HOW_IT_WORKS](HOW_IT_WORKS.md#load-order).
+
+## 9. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -179,3 +260,5 @@ python scripts/bench_macros.py --drop   # remove the benchmark table
 | Off by one day near midnight | `timestamptz` column without `tz='Asia/Tehran'`, or `tz` set on a plain `timestamp`. |
 | Duplicate column name error | Use `SELECT t.*` instead of `SELECT *`, or rename the source column that clashes. |
 | Slow dashboard | Filter with the date picker on the real date column, not on Jalali columns. |
+| Axis shows the text `jalali_date` | The chart rendered before the plugin bundle loaded (Explore only); click Run. Check that `DYNAMIC_PLUGINS` is on. |
+| Weekday axis in alphabetical order | Use `jalali_weekday_key` and sort the axis ascending. |

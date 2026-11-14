@@ -6,4 +6,6 @@ node_modules/
 dist/
 *.egg-info/
 src/superset_jalali/static/*
+!src/superset_jalali/static/columns.html
+!src/superset_jalali/static/columns.js
 frontend/test/fixtures.json

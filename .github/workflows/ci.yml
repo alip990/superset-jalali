@@ -42,6 +42,8 @@ jobs:
               bundle = 'superset_jalali/static/' + manifest['bundle']
               assert bundle in wheel.namelist()
               assert wheel.read(bundle)
+              for page in ['columns.html', 'columns.js']:
+                  assert wheel.read('superset_jalali/static/' + page)
           PY
       - uses: actions/upload-artifact@v4
         with:

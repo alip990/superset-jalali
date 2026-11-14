@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 — unreleased
+
+- New fields `week_start_date` (Jalali date of the week's Saturday, e.g.
+  `1403/07/14`; sorts as text, for weekly charts) and `weekday_key`
+  (`1 شنبه` … `7 جمعه`, sorts Saturday→Friday) in `jalali_columns()`,
+  `jalali()`, the Jalali columns page and the CLI. Existing fields are
+  unchanged; `week_start` stays a `DATE`. `week_start_date` is NULL when the
+  Saturday falls before `sql_min_year`.
+- Date filter: optional time of day («با ساعت») in the calendar tab. With
+  times the range is start-inclusive, end-exclusive
+  (`2024-09-22T08:00:00 : 2024-09-22T17:00:00`); without them nothing changes
+  and saved midnight ranges keep their whole-day meaning. New presets
+  «۱ ساعت اخیر» and «۲۴ ساعت اخیر».
+- Jalali time formats for charts: `jalali_date`, `jalali_datetime`,
+  `jalali_month`, `jalali_year` and `jalali_smart`, registered in Superset's
+  shared time-format registry; type one into a chart's Time format (for
+  example a Heatmap on a real date column). Opt-in
+  `JALALI["jalali_smart_date"] = True` makes Superset's default `smart_date`
+  formats Jalali in every chart. Docs: heatmap recipes and load order.
+
 ## 0.1.0 — unreleased
 
 - Persian RTL, Saturday-first Jalali picker for dashboard Time range native
@@ -42,5 +62,12 @@
   runtime verification remains pending.
 - Column arguments accept double-quoted identifiers for mixed-case PostgreSQL
   columns.
-- Faster year join: equality join on the Gregorian year instead of a range join
-  (about 2-16x faster on large tables in local benchmarks).
+- The year join is an equality join on the Gregorian year, which PostgreSQL
+  runs as a hash join with one lookup per row.
+- `jalali(col, field)` Jinja function for dataset calculated columns.
+- Add Jalali columns page and CLI: creates calculated columns on physical
+  datasets (`/superset-jalali/columns/`, Settings → Data → Jalali columns,
+  `superset jalali add-columns|remove-columns`); `columns_ui_enabled` switch.
+- Refactor: one shared builder for all Jalali field formulas.
+- `init_jalali(globals(), datefilter=False)` registers the blueprint for the
+  columns page and turns the picker off with `datefilter_enabled = False`.
