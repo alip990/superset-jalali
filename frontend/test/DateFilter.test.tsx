@@ -119,3 +119,54 @@ it('repositions when the calendar makes the panel taller without repeating host 
   expect(onOpenPopover).toHaveBeenCalledTimes(1);
   expect(onClosePopover).not.toHaveBeenCalled();
 });
+
+const input = (name: string, value: string) => act(() => tree.root.findByProps({'aria-label':name}).props.onChange({target:{value}}));
+const toggleTime = (checked: boolean) => act(() => tree.root.findByProps({type:'checkbox'}).props.onChange({target:{checked}}));
+
+it('applies a range with times when «با ساعت» is on', () => {
+  const {onChange} = open(); tab(1);
+  expect(tree.root.findAllByProps({'aria-label':'ساعت آغاز'})).toHaveLength(0);
+  expect(tree.root.findByProps({type:'checkbox'}).props.checked).toBe(false);
+  expect(tree.root.findByProps({className:'sj-check'}).children).toContain('با ساعت');
+  toggleTime(true);
+  const time = tree.root.findByProps({'aria-label':'ساعت آغاز'});
+  expect(time.props.placeholder).toBe('۰۸:۰۰');
+  expect(time.props.dir).toBe('ltr');
+  expect(tree.root.findByProps({'aria-label':'ساعت پایان'}).props.placeholder).toBe('۱۷:۰۰');
+  input('تاریخ آغاز', '۱۴۰۳/۰۷/۰۱'); input('تاریخ پایان', '۱۴۰۳/۰۷/۰۱');
+  input('ساعت آغاز', '۰۸:۰۰'); input('ساعت پایان', '17:00');
+  apply();
+  expect(onChange).toHaveBeenCalledWith('2024-09-22T08:00:00 : 2024-09-22T17:00:00');
+});
+
+it.each([
+  ['08:00', '08:00', 'زمان پایان باید پس از زمان آغاز باشد'],
+  ['24:00', '17:00', 'ساعت را'],
+  ['', '17:00', 'ساعت را'],
+])('reports invalid times %s to %s', (from, to, message) => {
+  const {onChange} = open(); tab(1); toggleTime(true);
+  input('تاریخ آغاز', '1403/07/01'); input('تاریخ پایان', '1403/07/01');
+  input('ساعت آغاز', from); input('ساعت پایان', to);
+  apply();
+  expect(onChange).not.toHaveBeenCalled();
+  expect(tree.root.findByProps({role:'alert'}).children.join('')).toContain(message);
+});
+
+it('keeps times when switching tabs and when reopening', () => {
+  const value = '2024-09-22T08:00:00 : 2024-09-23T17:30:00';
+  open(value);
+  expect(tree.root.findByProps({type:'checkbox'}).props.checked).toBe(true);
+  expect(tree.root.findByProps({'aria-label':'ساعت آغاز'}).props.value).toBe('۰۸:۰۰');
+  expect(tree.root.findByProps({'aria-label':'ساعت پایان'}).props.value).toBe('۱۷:۳۰');
+  input('ساعت پایان', '18:00');
+  tab(2);
+  expect(tree.root.findByProps({className:'sj-raw'}).props.value).toBe('2024-09-22T08:00:00 : 2024-09-23T18:00:00');
+  tab(1);
+  expect(tree.root.findByProps({'aria-label':'ساعت پایان'}).props.value).toBe('۱۸:۰۰');
+  toggleTime(false);
+  tab(2);
+  expect(tree.root.findByProps({className:'sj-raw'}).props.value).toBe('2024-09-22T00:00:00 : 2024-09-24T00:00:00');
+  tab(1);
+  expect(tree.root.findByProps({type:'checkbox'}).props.checked).toBe(false);
+  expect(tree.root.findByProps({className:'sj-trigger'}).props.title).toBe('۱۴۰۳/۰۷/۰۱ ساعت ۰۸:۰۰ تا ۱۴۰۳/۰۷/۰۲ ساعت ۱۷:۳۰');
+});

@@ -157,6 +157,10 @@ JALALI = {
 - `timestamptz` columns: set `tz='Asia/Tehran'` in **both** macros (or
   `sql_timezone`). Example: `2025-03-20 21:00:00+00` is 1404/01/01 in Tehran but
   1403/12/30 in UTC.
+- The picker's «با ساعت» times (README, *Time of day*) are wall-clock values:
+  on a `timestamptz` column PostgreSQL compares them in the connection's
+  session timezone, so `08:00` means 08:00 Tehran only if the session timezone
+  is `Asia/Tehran`. On a `date` column leave «با ساعت» off.
 
 ## 7. Performance tips
 

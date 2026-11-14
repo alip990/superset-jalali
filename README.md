@@ -68,6 +68,27 @@ half-open Gregorian range:
 2024-09-22T00:00:00 : 2024-10-22T00:00:00
 ```
 
+### Time of day
+
+Tick «با ساعت» in the calendar tab to add a 24-hour time (`HH:MM`, Persian or
+Latin digits) to «از» and «تا». With a time the start is included and the end
+is excluded, exactly as Superset applies time ranges: 1403/07/01 08:00 to
+1403/07/01 17:00 emits
+
+```text
+2024-09-22T08:00:00 : 2024-09-22T17:00:00
+```
+
+and the trigger shows `۱۴۰۳/۰۷/۰۱ ساعت ۰۸:۰۰ تا ۱۴۰۳/۰۷/۰۱ ساعت ۱۷:۰۰`. The
+start must be before the end. Without «با ساعت» nothing changes: whole days,
+end day included. Superset does not tell the filter which column it is applied
+to, so the time is optional and your choice. Leave it off for **date-only**
+columns: `date >= '2024-09-22T08:00:00'` excludes the whole start day, because
+the date 2024-09-22 is midnight. Times are wall-clock values compared with the
+stored values; for `timestamptz` columns PostgreSQL interprets them in the
+connection's session timezone. Saved values with midnight on both sides keep
+their whole-day meaning.
+
 Charts still filter their Gregorian date column with ordinary range predicates,
 so indexes can be used. Saved values remain valid after removing the plugin.
 Unknown existing expressions remain visible and editable as raw text.
@@ -93,7 +114,10 @@ DATEADD(DATETIME("today"), -6, day) : DATEADD(DATETIME("today"), 1, day)
 ```
 
 Rolling presets include today and remain current when saved as dashboard
-defaults. `today` follows Superset's server timezone; recommend `TZ=Asia/Tehran`.
+defaults. For date-and-time columns «۱ ساعت اخیر» and «۲۴ ساعت اخیر» emit
+`DATEADD(DATETIME("now"), -1, hour) : now` and
+`DATEADD(DATETIME("now"), -24, hour) : now`. `today` and `now` follow
+Superset's server timezone; recommend `TZ=Asia/Tehran`.
 
 «این هفته», «این ماه», «ماه گذشته», «این فصل», «فصل گذشته», «امسال», and
 «سال گذشته» are calculated using the current date in `Asia/Tehran`, then saved

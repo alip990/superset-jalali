@@ -48,6 +48,12 @@ guest tokens or other credentials.
   change is applied. Two valid dates remain in the draft. After arrow navigation,
   change month/year using the controls and confirm focus stays on the control;
   typing several characters into either date input keeps focus there.
+- [ ] Tick «با ساعت», enter 1403/07/01 ۰۸:۰۰ to 1403/07/01 17:00 and apply on
+  a `timestamp` column: **View query** has `>= '2024-09-22 08:00:00'` and
+  `< '2024-09-22 17:00:00'`. Equal start and end times show a Persian error.
+  Tab and Shift+Tab cycle through the time inputs and the checkbox without
+  leaving the popover; reopening shows the times; switching to «پیشرفته»
+  shows the same expression. «۱ ساعت اخیر» and «۲۴ ساعت اخیر» apply.
 - [ ] Temporarily rename the built bundle, reload with cache disabled, and confirm
   dashboards load with the stock picker. Health reports `ok: false`; discovery
   returns `[]`. Restore the bundle. Also simulate an HTTP bundle-import failure

@@ -1,7 +1,7 @@
 import { React, ReactDOM, DateFilterControlProps } from './shims';
 import { Calendar } from './Calendar';
-import { format, g2j, j2g, Jalali, parseJalali } from './jalali';
-import { emit, label, parse, Preset, presets, tehranToday } from './timeRange';
+import { fa, format, g2j, j2g, Jalali, parseJalali } from './jalali';
+import { emit, label, parse, Preset, presets, Range, tehranToday } from './timeRange';
 import { isDarkTheme, luminance } from './theme';
 
 const css = `
@@ -10,7 +10,7 @@ const css = `
 .sj-popover.sj-dark{--sj-bg:#1f2933;--sj-fg:#edf2f7;--sj-muted:#aab8c5;--sj-border:#526573;--sj-accent:#74cde6;--sj-accent-fg:#152935;--sj-range:#254554;--sj-weekend:#ff9ca8;--sj-weekend-selected:#ff9ca8;color-scheme:dark}
 .sj-popover *{box-sizing:border-box}.sj-popover button,.sj-popover input,.sj-popover select{font:inherit}.sj-popover button{cursor:pointer;border:1px solid var(--sj-border);background:var(--sj-bg);color:inherit;border-radius:4px;padding:5px 9px}.sj-popover button:disabled{opacity:.4;cursor:default}
 .sj-popover button:hover{background:var(--sj-range)}.sj-popover button:focus-visible,.sj-popover input:focus-visible,.sj-popover select:focus-visible{outline:2px solid var(--sj-accent);outline-offset:2px}.sj-popover input,.sj-popover select{border:1px solid var(--sj-border);border-radius:4px;padding:5px;background:var(--sj-bg);color:inherit;min-width:0}.sj-popover input::placeholder{color:var(--sj-muted);opacity:1}
-.sj-tabs{display:flex;gap:6px;border-bottom:1px solid var(--sj-border);padding-bottom:12px;margin-bottom:12px}.sj-popover button.sj-active,.sj-popover button.sj-primary{background:var(--sj-accent);color:var(--sj-accent-fg);border-color:var(--sj-accent)}.sj-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sj-inputs{display:flex;gap:12px;margin:12px 0}.sj-inputs label{flex:1;min-width:0}.sj-inputs input{width:100%;text-align:center;direction:ltr}
+.sj-tabs{display:flex;gap:6px;border-bottom:1px solid var(--sj-border);padding-bottom:12px;margin-bottom:12px}.sj-popover button.sj-active,.sj-popover button.sj-primary{background:var(--sj-accent);color:var(--sj-accent-fg);border-color:var(--sj-accent)}.sj-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sj-inputs{display:flex;gap:12px;margin:12px 0}.sj-inputs label{flex:1;min-width:0}.sj-inputs input{width:100%;text-align:center;direction:ltr}.sj-inputs .sj-time{margin-top:4px}.sj-check{display:flex;align-items:center;gap:6px}.sj-check input{margin:0}
 .sj-nav{display:flex;gap:6px;justify-content:space-between;margin:12px 0}.sj-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}.sj-grid button{border:0;padding:6px 0}.sj-weekday{font-size:10px;color:var(--sj-muted);white-space:nowrap;padding:4px 0}.sj-grid button.sj-selected{background:var(--sj-accent);color:var(--sj-accent-fg)}.sj-grid button.sj-between{background:var(--sj-range);color:var(--sj-accent)}.sj-footer{display:flex;gap:7px;margin-top:16px;padding-top:12px;border-top:1px solid var(--sj-border)}.sj-footer .sj-clear{margin-left:auto}.sj-error{color:var(--sj-weekend);margin-top:8px}.sj-hint{color:var(--sj-muted);font-size:12px;margin:8px 0}.sj-raw{width:100%;direction:ltr;text-align:left}
 .sj-grid .sj-weekend{color:var(--sj-weekend)}.sj-grid button.sj-between.sj-weekend{color:var(--sj-weekend)}.sj-grid button.sj-selected.sj-weekend{color:var(--sj-accent-fg);background:var(--sj-weekend-selected)}.sj-grid .sj-today{box-shadow:inset 0 0 0 2px currentColor}
 `;
@@ -30,6 +30,8 @@ export function DateFilter(props: DateFilterControlProps) {
   const [options, setOptions] = React.useState<Preset[]>([]);
   const [draft, setDraft] = React.useState(value || 'No filter');
   const [from, setFrom] = React.useState(''), [to, setTo] = React.useState('');
+  const [withTime, setWithTime] = React.useState(false);
+  const [fromTime, setFromTime] = React.useState(''), [toTime, setToTime] = React.useState('');
   const [start, setStart] = React.useState<Jalali>(), [end, setEnd] = React.useState<Jalali>();
   const [view, setView] = React.useState<[number,number]>(() => {const [y,m] = g2j(tehranToday()); return [y,m];});
   const [error, setError] = React.useState('');
@@ -84,6 +86,16 @@ export function DateFilter(props: DateFilterControlProps) {
     // Calendar handles arrows/selection; other buttons keep their native activation.
     if (e.defaultPrevented || ((e.key === 'Enter' || e.key === ' ') && (e.target as HTMLElement).closest('button'))) e.stopPropagation();
   };
+  const fill = (range?: Range) => {
+    if (range) {
+      setStart(range.start); setEnd(range.end); setFrom(format(range.start)); setTo(format(range.end));
+      setView([range.start[0], range.start[1]]);
+      setWithTime(range.startTime !== undefined);
+      setFromTime(range.startTime ? fa(range.startTime) : ''); setToTime(range.endTime ? fa(range.endTime) : '');
+    } else {setStart(undefined); setEnd(undefined); setFrom(''); setTo(''); setFromTime(''); setToTime('');}
+  };
+  // The calendar tab's value; throws a Persian message when an input is invalid.
+  const calendarValue = (a = parseJalali(from), b = parseJalali(to)) => withTime ? emit(a, b, fromTime, toTime) : emit(a, b);
   const show = () => {
     if (open) {close(); return;}
     if (trigger.current) {
@@ -99,9 +111,8 @@ export function DateFilter(props: DateFilterControlProps) {
     const current = parse(value, next);
     setDraft(value || 'No filter'); setError('');
     const range = current.kind === 'range' ? current : current.kind === 'preset' ? parse(current.preset.value, []) : undefined;
-    if (range?.kind === 'range') {
-      setStart(range.start); setEnd(range.end); setFrom(format(range.start)); setTo(format(range.end)); setView([range.start[0],range.start[1]]);
-    } else {setStart(undefined); setEnd(undefined); setFrom(''); setTo('');}
+    fill(range?.kind === 'range' ? range : undefined);
+    if (range?.kind !== 'range') setWithTime(false);
     setTab(current.kind === 'raw' ? 'advanced' : current.kind === 'range' ? 'calendar' : 'presets');
     setOpen(true);
   };
@@ -112,28 +123,25 @@ export function DateFilter(props: DateFilterControlProps) {
       const a = j2g(...date) < j2g(...start) ? date : start;
       const b = j2g(...date) < j2g(...start) ? start : date;
       setStart(a); setEnd(b); setFrom(format(a)); setTo(format(b));
-      setDraft(emit(a, b));
+      try {setDraft(calendarValue(a, b));} catch { /* Times still missing; apply reports it. */ }
     }
   };
   const switchTab = (next: typeof tab) => {
     if (next === tab) return;
+    let current = draft;
     if (tab === 'calendar' && (from || to)) {
-      try {setDraft(emit(parseJalali(from), parseJalali(to)));}
-      catch {setStart(undefined); setEnd(undefined); setFrom(''); setTo('');}
+      try {current = calendarValue(); setDraft(current);}
+      catch {fill();}
     }
     if (next === 'calendar') {
-      const range = parse(draft, []);
-      if (range.kind === 'range') {
-        setStart(range.start); setEnd(range.end);
-        setFrom(format(range.start)); setTo(format(range.end));
-        setView([range.start[0], range.start[1]]);
-      } else {setStart(undefined); setEnd(undefined); setFrom(''); setTo('');}
+      const range = parse(current, []);
+      fill(range.kind === 'range' ? range : undefined);
     }
     setTab(next); setError('');
   };
   const apply = () => {
     try {
-      const result = tab === 'calendar' ? emit(parseJalali(from), parseJalali(to)) : draft.trim();
+      const result = tab === 'calendar' ? calendarValue() : draft.trim();
       if (!result) throw new Error('بازهٔ زمانی را وارد کنید');
       onChange(result); close();
     } catch (err) {setError((err as Error).message);}
@@ -150,9 +158,13 @@ export function DateFilter(props: DateFilterControlProps) {
         <p className="sj-hint">روز آغاز و سپس روز پایان را انتخاب کنید.</p>
         <Calendar start={start} end={end} year={view[0]} month={view[1]} onNavigate={(y,m) => setView([y,m])} onSelect={select}/>
         <div className="sj-inputs">
-          <label>از<input aria-label="تاریخ آغاز" placeholder="۱۴۰۳/۰۷/۰۱" value={from} onChange={e => {setFrom(e.target.value); try {setStart(parseJalali(e.target.value));} catch {setStart(undefined);}}}/></label>
-          <label>تا<input aria-label="تاریخ پایان" placeholder="۱۴۰۳/۰۷/۳۰" value={to} onChange={e => {setTo(e.target.value); try {setEnd(parseJalali(e.target.value));} catch {setEnd(undefined);}}}/></label>
+          <label>از<input aria-label="تاریخ آغاز" placeholder="۱۴۰۳/۰۷/۰۱" value={from} onChange={e => {setFrom(e.target.value); try {setStart(parseJalali(e.target.value));} catch {setStart(undefined);}}}/>
+            {withTime && <input className="sj-time" aria-label="ساعت آغاز" placeholder="۰۸:۰۰" dir="ltr" inputMode="numeric" value={fromTime} onChange={e => setFromTime(e.target.value)}/>}</label>
+          <label>تا<input aria-label="تاریخ پایان" placeholder="۱۴۰۳/۰۷/۳۰" value={to} onChange={e => {setTo(e.target.value); try {setEnd(parseJalali(e.target.value));} catch {setEnd(undefined);}}}/>
+            {withTime && <input className="sj-time" aria-label="ساعت پایان" placeholder="۱۷:۰۰" dir="ltr" inputMode="numeric" value={toTime} onChange={e => setToTime(e.target.value)}/>}</label>
         </div>
+        <label className="sj-check"><input type="checkbox" checked={withTime} onChange={e => {setWithTime(e.target.checked); setError('');}}/>با ساعت</label>
+        <p className="sj-hint">ساعت فقط برای ستون‌های تاریخ و ساعت معنا دارد. برای ستون‌هایی که فقط تاریخ دارند ساعت را خاموش بگذارید.</p>
       </>}
       {tab === 'advanced' && <label>عبارت زمانی Superset<input className="sj-raw" value={draft} onChange={e => setDraft(e.target.value)}/></label>}
       {error && <div className="sj-error" role="alert">{error}</div>}

@@ -8,6 +8,11 @@
   `jalali()`, the Jalali columns page and the CLI. Existing fields are
   unchanged; `week_start` stays a `DATE`. `week_start_date` is NULL when the
   Saturday falls before `sql_min_year`.
+- Date filter: optional time of day («با ساعت») in the calendar tab. With
+  times the range is start-inclusive, end-exclusive
+  (`2024-09-22T08:00:00 : 2024-09-22T17:00:00`); without them nothing changes
+  and saved midnight ranges keep their whole-day meaning. New presets
+  «۱ ساعت اخیر» and «۲۴ ساعت اخیر».
 
 ## 0.1.0 — unreleased
 
