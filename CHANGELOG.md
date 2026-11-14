@@ -13,6 +13,12 @@
   (`2024-09-22T08:00:00 : 2024-09-22T17:00:00`); without them nothing changes
   and saved midnight ranges keep their whole-day meaning. New presets
   «۱ ساعت اخیر» and «۲۴ ساعت اخیر».
+- Jalali time formats for charts: `jalali_date`, `jalali_datetime`,
+  `jalali_month`, `jalali_year` and `jalali_smart`, registered in Superset's
+  shared time-format registry; type one into a chart's Time format (for
+  example a Heatmap on a real date column). Opt-in
+  `JALALI["jalali_smart_date"] = True` makes Superset's default `smart_date`
+  formats Jalali in every chart. Docs: heatmap recipes and load order.
 
 ## 0.1.0 — unreleased
 

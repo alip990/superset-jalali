@@ -1,5 +1,6 @@
 import type * as ReactTypes from 'react';
 import type * as ReactDOMTypes from 'react-dom';
+import type { TimeFormatterClass, TimeFormatterRegistry } from './timeFormats';
 
 export interface DateFilterControlProps {
   value?: string;
@@ -18,4 +19,9 @@ function shared<T>(name: string): T {
 }
 export const React = shared<typeof ReactTypes>('react');
 export const ReactDOM = shared<typeof ReactDOMTypes>('react-dom');
-export const core = shared<{getExtensionsRegistry: () => Registry}>('@superset-ui/core');
+export interface Core {
+  getExtensionsRegistry: () => Registry;
+  getTimeFormatterRegistry: () => TimeFormatterRegistry;
+  TimeFormatter: TimeFormatterClass;
+}
+export const core = shared<Core>('@superset-ui/core');

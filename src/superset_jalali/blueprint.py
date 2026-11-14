@@ -24,7 +24,11 @@ def _manifest_bundle():
 
 def _bundle_url():
     root = request.script_root or current_app.config.get('APPLICATION_ROOT', '')
-    return root.rstrip('/') + '/superset-jalali/static/' + _manifest_bundle()
+    url = root.rstrip('/') + '/superset-jalali/static/' + _manifest_bundle()
+    # The bundle reads its own URL (import.meta.url): Jalali smart_date formatters for every chart.
+    if current_app.config.get('JALALI', {}).get('jalali_smart_date', False) is True:
+        url += '?smart_date=1'
+    return url
 
 
 def _enabled():

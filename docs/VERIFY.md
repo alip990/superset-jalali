@@ -87,6 +87,19 @@ guest tokens or other credentials.
   month, weekday and Saturday week-start columns as well. The join and columns
   must share the timezone; do not set it on plain `timestamp` or `date` columns.
 
+## Jalali dates in charts
+
+- [ ] ECharts Heatmap, X `hour_of_day` (calculated `EXTRACT(HOUR FROM ...)`),
+  Y `jalali_date`, both axes *Axis ascending*: rows in Jalali date order.
+- [ ] Heatmap X `jalali_weekday_key`, Y `jalali_month_label`: شنبه first.
+- [ ] Heatmap on the real date column with Time format `jalali_date`: Jalali
+  labels. Same for a Table.
+- [ ] `JALALI["jalali_smart_date"] = True`, restart: the discovery response's
+  `bundle_url` ends in `?smart_date=1`; an untouched time-series chart shows
+  Jalali axis labels and tooltips, on a dashboard and an embedded dashboard.
+- [ ] Explore with cache disabled: if a chart first shows `jalali_date`
+  literally, Run fixes it (documented load-order limitation).
+
 ## Jalali calculated columns
 
 Use a PostgreSQL table with a `timestamp` column, with

@@ -128,6 +128,15 @@ roll forward automatically. Use rolling presets for dashboard defaults.
 Gregorian midnight values have no timezone suffix; coordinate Superset,
 PostgreSQL session, and source-data timezones.
 
+## Jalali dates in charts
+
+The bundle adds the time formats `jalali_date`, `jalali_datetime`,
+`jalali_month`, `jalali_year` and `jalali_smart` to Superset: type one in a
+chart's **Time format** box to show a real date column in Jalali, for example on
+a Heatmap axis. `JALALI["jalali_smart_date"] = True` makes Superset's default
+format Jalali in every chart. Recipes, including day × hour and weekday × month
+heatmaps: [docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts).
+
 ## Jalali columns without SQL
 
 A dataset created from a table in **Datasets → + Dataset** (a physical
@@ -226,8 +235,9 @@ row's week, formatted like `jalali_date`; it sorts correctly as text, so use it
 for weekly charts. It is NULL when that Saturday falls before `sql_min_year`
 (the first days of the window), even if the row's own date is inside it.
 `jalali_week_start` stays a real `DATE` for date maths: Superset formats every
-`DATE` in Gregorian, and it must not be used with the **Week** time grain,
-which moves it to Monday.
+`DATE` in Gregorian unless the chart's time format is a Jalali one (see
+[Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)), and it must
+not be used with the **Week** time grain, which moves it to Monday.
 `jalali_weekday_key` (`1 شنبه` … `7 جمعه`) sorts Saturday→Friday, unlike the
 plain weekday names.
 
@@ -382,6 +392,7 @@ JALALI = {
     "sql_digits": "latin",
     "sql_timezone": None,
     "columns_ui_enabled": True,
+    "jalali_smart_date": False,
 }
 ```
 
@@ -393,6 +404,7 @@ JALALI = {
 | `sql_digits` | `"latin"` | `"latin"` or `"persian"` for text values; the macro's `digits` argument overrides it. |
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 | `columns_ui_enabled` | `True` | `False` hides the Jalali columns page and menu link; the page and its API return 404. The CLI and existing columns keep working. Independent of `datefilter_enabled`. |
+| `jalali_smart_date` | `False` | `True` replaces Superset's default `smart_date` time formats with Jalali ones in every chart ([Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle (`datefilter_enabled`). |
 
 The join cost barely depends on the SQL year window; narrow it only to
 NULL out unwanted years. The SQL settings do not restrict the picker's calendar.

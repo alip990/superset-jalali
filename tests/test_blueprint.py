@@ -35,6 +35,16 @@ def test_anonymous_guest_and_cache(app):
     assert client.get('/dynamic-plugins/api/read', headers={'X-Test-Guest':'yes'}).json == {'result': []}
 
 
+@pytest.mark.parametrize('setting,query', [(None, ''), (False, ''), (True, '?smart_date=1'), ('yes', '')])
+def test_smart_date_flag_is_passed_in_the_bundle_url(app, setting, query):
+    if setting is not None:
+        app.config['JALALI'] = {'jalali_smart_date': setting}
+    client = app.test_client()
+    url = client.get('/dynamic-plugins/api/read', headers={'X-Test-Guest': 'yes'}).json['result'][0]['bundle_url']
+    assert url == '/superset-jalali/static/jalali-12345678.js' + query
+    assert client.get(url).status_code == 200
+
+
 def test_internal_error_and_missing_bundle(app, monkeypatch):
     def fail(): raise RuntimeError('test')
     monkeypatch.setattr(bp, '_bundle_url', fail)
