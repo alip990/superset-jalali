@@ -103,11 +103,17 @@ evaluates `G` once per simple `CASE`.
 
 ### One definition of each field
 
-`_field_expressions(date, year, start, digits)` is the only code that knows how
-to compute the 13 fields (month and day from the day of year, season, weekday,
-labels, Persian digits, week start, the NULL wrapper). `jalali_columns()` calls
-it with the year and Nowruz taken from the join alias; `jalali()` calls it with
-the `CASE` expressions above. `tests/test_sql_postgres.py` compares both paths
+`_field_expressions(date, nowruz, prev_nowruz, year_after, year_before, digits)`
+is the only code that knows how to compute the 15 fields (month and day from the
+day of year, season, weekday, labels, Persian digits, week start, the NULL
+wrapper). It receives the four values of the row's year-table entry, not an
+already chosen year, so it can convert a second date with the same entry:
+the Saturday `W = D - weekday` behind `week_start_date`. `W` can be in the
+previous Jalali year (1403/01/01 is a Wednesday; its Saturday is 1402/12/26)
+or the previous Gregorian year (2025-01-02 → 2024-12-28), but
+`W >= D - 6 >= 1 January - 6 > prev_nowruz`, so `W >= NZ ? year_after :
+year_before` and the matching Nowruz are still correct. `jalali_columns()`
+passes the join alias's columns; `jalali()` passes the `CASE` expressions above. `tests/test_sql_postgres.py` compares both paths
 for every day from 1985 to 2045 in three year windows, with Persian digits and
 for `timestamptz` in Tehran. The single expression is longer (up to about 25 KB
 for `month_label`) and about 2-2.5x slower on full-history aggregations; see
@@ -150,3 +156,66 @@ added with `appbuilder.add_link(..., category="Data")` from the chained
 `FLASK_APP_MUTATOR`. FAB creates its `menu_access` permission, which
 `superset init` grants to Admin, Alpha and Gamma. The CLI is the blueprint's
 `jalali` command group.
+
+## Jalali time formats
+
+`frontend/src/timeFormats.ts` registers `TimeFormatter` instances in the host's
+`TimeFormatterRegistry` (both from the shared `@superset-ui/core`). Every chart
+asks that registry for its formatter: `getTimeFormatter(id)` returns a
+registered id first and only otherwise builds a d3 formatter
+([TimeFormatterRegistry.ts#L48-L72](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/time-format/TimeFormatterRegistry.ts#L48-L72)).
+The ECharts Heatmap formats temporal axis values with
+`getTimeFormatter(xAxisTimeFormat)`
+([Heatmap/transformProps.ts#L222-L231](https://github.com/apache/superset/blob/6.1.0/superset-frontend/plugins/plugin-chart-echarts/src/Heatmap/transformProps.ts#L222-L231)),
+and the time-series axis and tooltip formatters also resolve `smart_date`,
+`smart_date_detailed` and `smart_date_verbose` through it
+([utils/formatters.ts](https://github.com/apache/superset/blob/6.1.0/superset-frontend/plugins/plugin-chart-echarts/src/utils/formatters.ts#L36-L41)).
+Superset registers those three in
+[setupFormatters.ts#L96-L112](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/setup/setupFormatters.ts#L96-L112), before
+any plugin loads.
+
+Values arrive as `Date` or epoch milliseconds; naive database timestamps are
+UTC instants whose UTC fields are the stored wall-clock time, so the formatters
+read `getUTC*`, like Superset's non-`local!` formats, and convert the date with
+the same `g2j` table as the picker. Values outside the table, NULL and invalid
+dates use Superset's own formatter (`%Y-%m-%d`, `%Y-%m`, `%Y` or the original
+smart formatter, captured before any replacement); a formatter never throws.
+
+`JALALI["jalali_smart_date"]` reaches the browser without another request:
+`_bundle_url()` appends `?smart_date=1` to the bundle URL in the discovery
+response, and the module reads `new URL(import.meta.url).searchParams`. esbuild
+keeps `import.meta` only when told the target supports it
+(`supported: {"import-meta": true}` in `esbuild.options.mjs`; with plain
+`es2019` it would be replaced by `{}`); `test/timeFormats.test.ts` builds the
+bundle and checks this.
+
+### Load order
+
+- **Dashboards (including embedded) wait for the bundle.** `Dashboard.render()`
+  returns `<Loading />` while `PluginContext.loading` is true
+  ([Dashboard.tsx#L335-L340](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/dashboard/components/Dashboard.tsx#L335-L340)).
+  `loading` starts as `isFeatureEnabled(DYNAMIC_PLUGINS)`
+  ([DynamicPlugins/index.tsx#L134](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/components/DynamicPlugins/index.tsx#L134))
+  and becomes false only after every discovered bundle has been imported
+  ([#L142-L169](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/components/DynamicPlugins/index.tsx#L142-L169),
+  [#L85-L99](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/components/DynamicPlugins/index.tsx#L85-L99)).
+  Embedded dashboards use the same provider
+  ([EmbeddedContextProviders.tsx#L72](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/embedded/EmbeddedContextProviders.tsx#L72))
+  and the same `Dashboard` component through `DashboardPage`
+  ([DashboardPage.tsx#L301-L306](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/dashboard/containers/DashboardPage.tsx#L301-L306)).
+  Charts therefore render after the formats are registered.
+- **Explore does not wait for built-in charts.** It waits only for the dynamic
+  plugin whose key equals the chart's `viz_type`
+  ([ExploreViewContainer/index.tsx#L370-L375](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/explore/components/ExploreViewContainer/index.tsx#L370-L375),
+  [#L529-L534](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/explore/components/ExploreViewContainer/index.tsx#L529-L534))
+  or for a missing control panel
+  ([ControlPanelsContainer.tsx#L929](https://github.com/apache/superset/blob/6.1.0/superset-frontend/src/explore/components/ControlPanelsContainer.tsx#L929)).
+  A Heatmap whose data arrives before the bundle asks the registry for
+  `jalali_date`, which then builds and **caches** a d3 formatter for that
+  unknown id; d3 prints the id literally. The bundle therefore always
+  overwrites its ids (`remove` then `registerValue`; the registry's policy is
+  `OverwritePolicy.Warn`, so overwriting is allowed), and the next render uses
+  Jalali. Remaining limitation: such an early chart keeps the literal text (or
+  Gregorian dates in the global mode) until it renders again (Run, a control
+  change or a resize). The bundle is small and cached as immutable, so this is
+  rare and only on a cold Explore load.

@@ -68,6 +68,27 @@ half-open Gregorian range:
 2024-09-22T00:00:00 : 2024-10-22T00:00:00
 ```
 
+### Time of day
+
+Tick «با ساعت» in the calendar tab to add a 24-hour time (`HH:MM`, Persian or
+Latin digits) to «از» and «تا». With a time the start is included and the end
+is excluded, exactly as Superset applies time ranges: 1403/07/01 08:00 to
+1403/07/01 17:00 emits
+
+```text
+2024-09-22T08:00:00 : 2024-09-22T17:00:00
+```
+
+and the trigger shows `۱۴۰۳/۰۷/۰۱ ساعت ۰۸:۰۰ تا ۱۴۰۳/۰۷/۰۱ ساعت ۱۷:۰۰`. The
+start must be before the end. Without «با ساعت» nothing changes: whole days,
+end day included. Superset does not tell the filter which column it is applied
+to, so the time is optional and your choice. Leave it off for **date-only**
+columns: `date >= '2024-09-22T08:00:00'` excludes the whole start day, because
+the date 2024-09-22 is midnight. Times are wall-clock values compared with the
+stored values; for `timestamptz` columns PostgreSQL interprets them in the
+connection's session timezone. Saved values with midnight on both sides keep
+their whole-day meaning.
+
 Charts still filter their Gregorian date column with ordinary range predicates,
 so indexes can be used. Saved values remain valid after removing the plugin.
 Unknown existing expressions remain visible and editable as raw text.
@@ -93,7 +114,10 @@ DATEADD(DATETIME("today"), -6, day) : DATEADD(DATETIME("today"), 1, day)
 ```
 
 Rolling presets include today and remain current when saved as dashboard
-defaults. `today` follows Superset's server timezone; recommend `TZ=Asia/Tehran`.
+defaults. For date-and-time columns «۱ ساعت اخیر» and «۲۴ ساعت اخیر» emit
+`DATEADD(DATETIME("now"), -1, hour) : now` and
+`DATEADD(DATETIME("now"), -24, hour) : now`. `today` and `now` follow
+Superset's server timezone; recommend `TZ=Asia/Tehran`.
 
 «این هفته», «این ماه», «ماه گذشته», «این فصل», «فصل گذشته», «امسال», and
 «سال گذشته» are calculated using the current date in `Asia/Tehran`, then saved
@@ -104,10 +128,19 @@ roll forward automatically. Use rolling presets for dashboard defaults.
 Gregorian midnight values have no timezone suffix; coordinate Superset,
 PostgreSQL session, and source-data timezones.
 
+## Jalali dates in charts
+
+The bundle adds the time formats `jalali_date`, `jalali_datetime`,
+`jalali_month`, `jalali_year` and `jalali_smart` to Superset: type one in a
+chart's **Time format** box to show a real date column in Jalali, for example on
+a Heatmap axis. `JALALI["jalali_smart_date"] = True` makes Superset's default
+format Jalali in every chart. Recipes, including day × hour and weekday × month
+heatmaps: [docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts).
+
 ## Jalali columns without SQL
 
 A dataset created from a table in **Datasets → + Dataset** (a physical
-dataset) can get Jalali columns in one click. The plugin adds up to 13
+dataset) can get Jalali columns in one click. The plugin adds up to 15
 **calculated columns** to the dataset; each one is a single expression that
 calls the `jalali(col, field)` Jinja function, for example
 `{{ jalali('"OccouredDate"', 'month_label') }}`. Nobody types SQL.
@@ -155,7 +188,7 @@ large tables prefer the virtual dataset.
 1. Open **Settings → Data → Jalali columns**, or `/superset-jalali/columns/`.
 2. Choose the dataset and its date column. Only PostgreSQL datasets you may
    edit, and their physical date/timestamp columns, are listed.
-3. Keep all 13 fields checked (or pick some), keep the prefix `jalali_`.
+3. Keep all 15 fields checked (or pick some), keep the prefix `jalali_`.
    Choose timezone **Asia/Tehran** only for `timestamptz` columns.
 4. Click «افزودن ستون‌های جلالی». The columns appear in **Edit dataset →
    Calculated columns**. «حذف ستون‌های جلالی» removes only the columns the
@@ -189,11 +222,24 @@ superset jalali remove-columns --dataset CR.DeviceCrime --column OccouredDate
 | `jalali_weekday` | VARCHAR | روز هفته | چهارشنبه |
 | `jalali_weekday_num` | INTEGER | شماره روز هفته (شنبه = ۰) | 4 |
 | `jalali_week_start` | DATE | شروع هفته (شنبه) | 2024-10-05 |
+| `jalali_week_start_date` | VARCHAR | شروع هفته (تاریخ جلالی) | 1403/07/14 |
+| `jalali_weekday_key` | VARCHAR | روز هفته (مرتب) | 5 چهارشنبه |
 
 The Persian name is the column's label in Explore. Values follow the
 `sql_min_year`/`sql_max_year` window, `sql_digits` and `sql_timezone` settings,
 and are NULL for NULL dates or dates outside the window, exactly as in the
 virtual-dataset macros.
+
+`jalali_week_start_date` is the Jalali date of the Saturday that starts the
+row's week, formatted like `jalali_date`; it sorts correctly as text, so use it
+for weekly charts. It is NULL when that Saturday falls before `sql_min_year`
+(the first days of the window), even if the row's own date is inside it.
+`jalali_week_start` stays a real `DATE` for date maths: Superset formats every
+`DATE` in Gregorian unless the chart's time format is a Jalali one (see
+[Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)), and it must
+not be used with the **Week** time grain, which moves it to Monday.
+`jalali_weekday_key` (`1 شنبه` … `7 جمعه`) sorts Saturday→Friday, unlike the
+plain weekday names.
 
 ### Rules
 
@@ -250,6 +296,8 @@ window, and NULL source dates, produce NULL in **all** derived columns.
 | `jalali_weekday` | text | چهارشنبه |
 | `jalali_weekday_num` | integer | 4 (Saturday=0) |
 | `jalali_week_start` | date | 2024-10-05 (Saturday, Gregorian date) |
+| `jalali_week_start_date` | text | 1403/07/14 (the same Saturday, Jalali) |
+| `jalali_weekday_key` | text | 5 چهارشنبه (sorts Saturday→Friday) |
 
 `jalali_season_key` combines the year, season number (1–4) and Persian name,
 for example `1403-3 پاییز`. It sorts chronologically and reads well as a chart
@@ -277,7 +325,7 @@ avoid dataset collisions.
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
 
-`jalali(col, field, tz=None, digits=None)` returns one of the 13 fields as a
+`jalali(col, field, tz=None, digits=None)` returns one of the 15 fields as a
 single expression, with no join, for calculated columns or any SQL where a join
 is not possible. `field` is a column name without the prefix, such as `year`
 or `month_label`; other arguments behave as in `jalali_columns`. Its values
@@ -344,6 +392,7 @@ JALALI = {
     "sql_digits": "latin",
     "sql_timezone": None,
     "columns_ui_enabled": True,
+    "jalali_smart_date": False,
 }
 ```
 
@@ -355,6 +404,7 @@ JALALI = {
 | `sql_digits` | `"latin"` | `"latin"` or `"persian"` for text values; the macro's `digits` argument overrides it. |
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 | `columns_ui_enabled` | `True` | `False` hides the Jalali columns page and menu link; the page and its API return 404. The CLI and existing columns keep working. Independent of `datefilter_enabled`. |
+| `jalali_smart_date` | `False` | `True` replaces Superset's default `smart_date` time formats with Jalali ones in every chart ([Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle (`datefilter_enabled`). |
 
 The join cost barely depends on the SQL year window; narrow it only to
 NULL out unwanted years. The SQL settings do not restrict the picker's calendar.

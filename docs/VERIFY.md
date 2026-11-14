@@ -48,6 +48,12 @@ guest tokens or other credentials.
   change is applied. Two valid dates remain in the draft. After arrow navigation,
   change month/year using the controls and confirm focus stays on the control;
   typing several characters into either date input keeps focus there.
+- [ ] Tick «با ساعت», enter 1403/07/01 ۰۸:۰۰ to 1403/07/01 17:00 and apply on
+  a `timestamp` column: **View query** has `>= '2024-09-22 08:00:00'` and
+  `< '2024-09-22 17:00:00'`. Equal start and end times show a Persian error.
+  Tab and Shift+Tab cycle through the time inputs and the checkbox without
+  leaving the popover; reopening shows the times; switching to «پیشرفته»
+  shows the same expression. «۱ ساعت اخیر» and «۲۴ ساعت اخیر» apply.
 - [ ] Temporarily rename the built bundle, reload with cache disabled, and confirm
   dashboards load with the stock picker. Health reports `ok: false`; discovery
   returns `[]`. Restore the bundle. Also simulate an HTTP bundle-import failure
@@ -71,8 +77,8 @@ guest tokens or other credentials.
   evaluate correctly, including the final day. Superset's `today` follows the
   server timezone; recommend `TZ=Asia/Tehran`. Calendar presets are fixed ranges.
 - [ ] With template processing explicitly enabled, run a PostgreSQL virtual
-  dataset using both macros. Verify Nowruz, leap Esfand, all 13 columns, Saturday
-  week starts, NULL dates, out-of-window dates and Persian digit formatting.
+  dataset using both macros. Verify Nowruz, leap Esfand, all 15 columns, Saturday
+  week starts (`jalali_week_start_date` is Jalali; 1403/01/01 → 1402/12/26), NULL dates, out-of-window dates and Persian digit formatting.
 - [ ] With a UTC PostgreSQL session and `sql_timezone` unset, test `timestamptz`
   values around Tehran midnight using **both** macros with `tz='Asia/Tehran'`:
   `2025-03-20 20:29:59+00` yields `1403/12/30`, while
@@ -80,6 +86,19 @@ guest tokens or other credentials.
   Without `tz`, all three yield `1403/12/30` in that UTC session. Check the year,
   month, weekday and Saturday week-start columns as well. The join and columns
   must share the timezone; do not set it on plain `timestamp` or `date` columns.
+
+## Jalali dates in charts
+
+- [ ] ECharts Heatmap, X `hour_of_day` (calculated `EXTRACT(HOUR FROM ...)`),
+  Y `jalali_date`, both axes *Axis ascending*: rows in Jalali date order.
+- [ ] Heatmap X `jalali_weekday_key`, Y `jalali_month_label`: شنبه first.
+- [ ] Heatmap on the real date column with Time format `jalali_date`: Jalali
+  labels. Same for a Table.
+- [ ] `JALALI["jalali_smart_date"] = True`, restart: the discovery response's
+  `bundle_url` ends in `?smart_date=1`; an untouched time-series chart shows
+  Jalali axis labels and tooltips, on a dashboard and an embedded dashboard.
+- [ ] Explore with cache disabled: if a chart first shows `jalali_date`
+  literally, Run fixes it (documented load-order limitation).
 
 ## Jalali calculated columns
 
@@ -89,7 +108,7 @@ Use a PostgreSQL table with a `timestamp` column, with
 - [ ] **Physical dataset.** Datasets → + Dataset → pick the table.
 - [ ] **Add.** Open **Settings → Data → Jalali columns** (or
   `/superset-jalali/columns/`), choose the dataset and date column, click
-  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 13
+  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 15
   `jalali_*` columns with Persian labels; no browser console or CSP errors.
 - [ ] **Explore.** Bar chart, X-axis `jalali_month_label`, metric `COUNT(*)`,
   sorted by `jalali_month`. Values match the same chart on a virtual dataset of
