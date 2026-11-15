@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Formatter, JALALI_IDS, registerTimeFormats, SMART_IDS, smartDateFromUrl, TimeFormatterRegistry } from '../src/timeFormats';
+import { calendarHeatmapFromUrl, Formatter, JALALI_IDS, registerTimeFormats, SMART_IDS, smartDateFromUrl, TimeFormatterRegistry } from '../src/timeFormats';
 
 /** A small stand-in for @superset-ui/core's TimeFormatter and TimeFormatterRegistry (OverwritePolicy.Warn). */
 class FakeFormatter {
@@ -110,6 +110,17 @@ describe('global smart_date mode', () => {
   ])('reads the flag from %s', (url, expected) => {
     expect(smartDateFromUrl(url)).toBe(expected);
   });
+
+  it.each([
+    ['https://bi.example/superset-jalali/static/jalali-AB.js', true], // on by default
+    ['https://bi.example/superset-jalali/static/jalali-AB.js?smart_date=1', true],
+    ['https://bi.example/superset-jalali/static/jalali-AB.js?cal_heatmap=1', true],
+    ['https://bi.example/superset-jalali/static/jalali-AB.js?cal_heatmap=0', false],
+    ['https://bi.example/superset-jalali/static/jalali-AB.js?smart_date=1&cal_heatmap=0', false],
+    ['not a url', true],
+  ])('Jalali Calendar Heatmap for %s: %s', (url, expected) => {
+    expect(calendarHeatmapFromUrl(url)).toBe(expected);
+  });
 });
 
 describe('bundle entry', () => {
@@ -132,11 +143,11 @@ describe('bundle entry', () => {
     expect(calls[1]).toEqual(['register', registry, TimeFormatter, smart]);
   });
 
-  it.each([[true], [false]])('replaces the calendar heatmap only when asked (flag: %s)', async flag => {
+  it.each([[true], [false]])('replaces the calendar heatmap unless the URL says off (on: %s)', async flag => {
     const calls: unknown[][] = [];
     vi.doMock('../src/timeFormats', async original => ({
       ...(await original<typeof import('../src/timeFormats')>()),
-      flagFromUrl: (url: string, name: string) => {calls.push(['flag', name]); return flag && name === 'cal_heatmap';},
+      calendarHeatmapFromUrl: (url: string) => {calls.push(['flag', url.endsWith('src/index.ts')]); return flag;},
       registerTimeFormats: () => undefined,
     }));
     vi.doMock('../src/calendarHeatmap', () => ({registerCalendarHeatmap: (registry: unknown) => {calls.push(['register', registry]);}}));
@@ -147,7 +158,7 @@ describe('bundle entry', () => {
       getTimeFormatterRegistry: () => ({}), TimeFormatter: class {}, getChartComponentRegistry: () => components,
     }});
     await import('../src/index');
-    expect(calls).toEqual(flag ? [['flag', 'cal_heatmap'], ['register', components]] : [['flag', 'cal_heatmap']]);
+    expect(calls).toEqual(flag ? [['flag', true], ['register', components]] : [['flag', true]]);
     vi.doUnmock('../src/calendarHeatmap');
   });
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0 — unreleased
+
+- **Behaviour change:** `JALALI["jalali_calendar_heatmap"]` is now **on by
+  default**. After upgrading, every existing Calendar Heatmap shows Jalali
+  months. Set it to `False` to keep Superset's Gregorian chart (the server then
+  adds `?cal_heatmap=0` to the bundle URL; with it on there is no parameter).
+- New look for the Jalali Calendar Heatmap: one rounded card per month (or
+  year) with the month name and year, weekday letters with Friday in red, rounded
+  cells that grow to fill the width (at least the chart's Cell Size, at most
+  30 px), a gradient legend with the lowest and highest value, a ring on today,
+  fainter cells outside the time range, readable numbers on every colour, a
+  better tooltip and an empty-state message.
+
 ## 0.5.0 — unreleased
 
 - `jalali_columns(..., fields=[...])` generates only the chosen columns, in the

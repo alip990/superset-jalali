@@ -100,10 +100,13 @@ guest tokens or other credentials.
 - [ ] `JALALI["jalali_smart_date"] = True`, restart: the discovery response's
   `bundle_url` ends in `?smart_date=1`; an untouched time-series chart shows
   Jalali axis labels and tooltips, on a dashboard and an embedded dashboard.
-- [ ] `JALALI["jalali_calendar_heatmap"] = True`: an existing Calendar Heatmap
-  (domain month, subdomain day) shows Jalali months, right to left, on a
+- [ ] With no setting (`jalali_calendar_heatmap` is on by default) an existing
+  Calendar Heatmap (domain month, subdomain day) shows Jalali month cards, right
+  to left, with weekday letters, a gradient legend and a ring on today, on a
   dashboard, an embedded dashboard and in Explore, with Jalali tooltips; domain
   year too. Domain week or subdomain week shows Superset's original chart.
+  `JALALI["jalali_calendar_heatmap"] = False`, restart: the discovery response's
+  `bundle_url` ends in `?cal_heatmap=0` and the chart is Superset's Gregorian one.
 - [ ] Explore with cache disabled: if a chart first shows `jalali_date`
   literally, Run fixes it (documented load-order limitation).
 

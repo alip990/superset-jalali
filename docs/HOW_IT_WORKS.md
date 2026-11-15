@@ -258,9 +258,10 @@ else about the chart (controls, query, transformProps) can stay.
 ([ChartPlugin.ts](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/chart/models/ChartPlugin.ts)),
 and `SuperChartCore` asks that registry for the component on every render
 ([SuperChartCore.tsx](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/chart/components/SuperChartCore.tsx)).
-With `JALALI["jalali_calendar_heatmap"]` the bundle (read from `?cal_heatmap=1`
-on its URL, like `smart_date`) removes the entry for `cal_heatmap` and registers
-its own component under the same key. `remove` also drops the registry's cached
+Unless `JALALI["jalali_calendar_heatmap"]` is `False` (the default is on; the
+server then adds `?cal_heatmap=0` to the bundle URL, like `?smart_date=1`), the
+bundle removes the entry for `cal_heatmap` and registers its own component
+under the same key. `remove` also drops the registry's cached
 promise of the original. The original loader is kept and called only when
 needed.
 

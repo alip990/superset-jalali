@@ -46,12 +46,16 @@ def test_smart_date_flag_is_passed_in_the_bundle_url(app, setting, query):
 
 
 @pytest.mark.parametrize('settings,query', [
-    ({'jalali_calendar_heatmap': True}, '?cal_heatmap=1'),
-    ({'jalali_calendar_heatmap': 1}, ''),
-    ({'jalali_smart_date': True, 'jalali_calendar_heatmap': True}, '?smart_date=1&cal_heatmap=1'),
-    ({'jalali_smart_date': False, 'jalali_calendar_heatmap': True}, '?cal_heatmap=1'),
+    ({}, ''),  # on by default: no parameter, so the URL is the plain bundle
+    ({'jalali_calendar_heatmap': True}, ''),
+    ({'jalali_calendar_heatmap': False}, '?cal_heatmap=0'),
+    ({'jalali_calendar_heatmap': 1}, '?cal_heatmap=0'),  # only True turns it on
+    ({'jalali_calendar_heatmap': None}, '?cal_heatmap=0'),
+    ({'jalali_smart_date': True}, '?smart_date=1'),
+    ({'jalali_smart_date': True, 'jalali_calendar_heatmap': False}, '?smart_date=1&cal_heatmap=0'),
+    ({'jalali_smart_date': False, 'jalali_calendar_heatmap': False}, '?cal_heatmap=0'),
 ])
-def test_calendar_heatmap_flag_is_passed_in_the_bundle_url(app, settings, query):
+def test_calendar_heatmap_is_on_by_default_and_off_with_a_parameter(app, settings, query):
     app.config['JALALI'] = settings
     client = app.test_client()
     url = client.get('/dynamic-plugins/api/read', headers={'X-Test-Guest': 'yes'}).json['result'][0]['bundle_url']
