@@ -48,7 +48,7 @@ def _run(action):
 @blueprint.cli.command('add-columns')
 @click.option('--dataset', required=True, help='Dataset id, table or schema.table')
 @click.option('--column', required=True, help='Source date or timestamp column')
-@click.option('--fields', help='Comma-separated fields; default: all 15')
+@click.option('--fields', help='Comma-separated fields; default: all 12')
 @click.option('--prefix', default='jalali_', show_default=True)
 @click.option('--tz', help='Asia/Tehran for timestamptz columns only')
 @click.option('--user', help='Username to act as; default: the first Admin')

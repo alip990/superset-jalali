@@ -58,9 +58,12 @@ def test_page_renders_token_fields_and_nonce(app):
     page = client.get('/superset-jalali/columns/', environ_overrides={'SCRIPT_NAME': '/analytics'})
     assert page.headers['Cache-Control'] == 'no-store' and page.mimetype == 'text/html'
     assert '{{' not in page.text
-    assert '"name": "season_key", "type": "VARCHAR", "label": "فصل جلالی (کلید)"' in page.text
-    assert '"name": "week_start_date", "type": "VARCHAR", "label": "شروع هفته (تاریخ جلالی)"' in page.text
-    assert page.text.index('"weekday_key"') > page.text.index('"week_start_date"') > page.text.index('"week_start"')
+    assert '"name": "season", "type": "VARCHAR", "label": "فصل جلالی"' in page.text
+    assert '"name": "week_of_year", "type": "INTEGER", "label": "هفته از سال"' in page.text
+    assert '"name": "week_start", "type": "VARCHAR", "label": "شروع هفته (شنبه، میلادی)"' in page.text
+    assert page.text.index('"week_start_date"') > page.text.index('"week_start"') > page.text.index('"week_of_year"')
+    for dropped in ('"month"', '"month_label"', '"season_key"', '"weekday_key"'):
+        assert f'"name": {dropped}' not in page.text
     assert 'افزودن ستون‌های جلالی' in page.text and 'حذف ستون‌های جلالی' in page.text
     assert 'src="columns.js" nonce=""' in page.text
     script = client.get('/superset-jalali/columns/columns.js')
@@ -96,9 +99,9 @@ def test_happy_paths(app, calls):
     datasets = client.get('/superset-jalali/api/datasets')
     assert datasets.json == [{'id': 7, 'name': 't'}] and datasets.headers['Cache-Control'] == 'no-store'
     response = client.post(URL, json={'column': 'occurred_at', 'fields': ['year'], 'tz': 'Asia/Tehran'}, headers=headers)
-    new_fields = client.post(URL, json={'column': 'occurred_at', 'fields': ['week_start_date', 'weekday_key']}, headers=headers)
+    new_fields = client.post(URL, json={'column': 'occurred_at', 'fields': ['week_start_date', 'week_of_year']}, headers=headers)
     assert new_fields.status_code == 200 and calls.pop() == (
-        'add', 7, 'occurred_at', ['week_start_date', 'weekday_key'], 'jalali_', None, 'alice')
+        'add', 7, 'occurred_at', ['week_start_date', 'week_of_year'], 'jalali_', None, 'alice')
     assert response.status_code == 200 and response.json == {'created': ['jalali_year'], 'updated': []}
     response = client.delete(URL + '?column=occurred_at', headers=headers)
     assert response.json == {'removed': ['jalali_year']}

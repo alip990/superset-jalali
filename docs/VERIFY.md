@@ -77,7 +77,7 @@ guest tokens or other credentials.
   evaluate correctly, including the final day. Superset's `today` follows the
   server timezone; recommend `TZ=Asia/Tehran`. Calendar presets are fixed ranges.
 - [ ] With template processing explicitly enabled, run a PostgreSQL virtual
-  dataset using both macros. Verify Nowruz, leap Esfand, all 15 columns, Saturday
+  dataset using both macros. Verify Nowruz, leap Esfand, all 12 columns, Saturday
   week starts (`jalali_week_start_date` is Jalali; 1403/01/01 → 1402/12/26), NULL dates, out-of-window dates and Persian digit formatting.
 - [ ] With a UTC PostgreSQL session and `sql_timezone` unset, test `timestamptz`
   values around Tehran midnight using **both** macros with `tz='Asia/Tehran'`:
@@ -91,7 +91,7 @@ guest tokens or other credentials.
 
 - [ ] ECharts Heatmap, X `hour_of_day` (calculated `EXTRACT(HOUR FROM ...)`),
   Y `jalali_date`, both axes *Axis ascending*: rows in Jalali date order.
-- [ ] Heatmap X `jalali_weekday_key`, Y `jalali_month_label`: شنبه first.
+- [ ] Heatmap X `jalali_weekday_num`, Y `jalali_month_num`: Saturday (1) first.
 - [ ] Heatmap on the real date column with Time format `jalali_date`: Jalali
   labels. Same for a Table.
 - [ ] `JALALI["jalali_smart_date"] = True`, restart: the discovery response's
@@ -112,10 +112,18 @@ Use a PostgreSQL table with a `timestamp` column, with
 - [ ] **Physical dataset.** Datasets → + Dataset → pick the table.
 - [ ] **Add.** Open **Settings → Data → Jalali columns** (or
   `/superset-jalali/columns/`), choose the dataset and date column, click
-  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 15
-  `jalali_*` columns with Persian labels; no browser console or CSP errors.
-- [ ] **Explore.** Bar chart, X-axis `jalali_month_label`, metric `COUNT(*)`,
-  sorted by `jalali_month`. Values match the same chart on a virtual dataset of
+  «افزودن ستون‌های جلالی». Edit dataset → Calculated columns shows 12
+  columns with Persian labels (`week_start` without the `jalali_` prefix); no
+  browser console or CSP errors.
+- [ ] **Upgrade.** On a dataset that has columns from an older version, add the
+  columns again: the result lists `removed` columns (`jalali_month`,
+  `jalali_month_label`, `jalali_season_key`, `jalali_weekday_key`,
+  `jalali_week_start`) and the dataset keeps `jalali_weekday_num` (now 1 for
+  Saturday) and the new `jalali_week_of_year` and `week_start`.
+- [ ] **Weekly chart.** Bar chart on `week_start`, sorted ascending: every bar's
+  label is its Saturday; there are no labels like `Thu 13` between bars.
+- [ ] **Explore.** Bar chart, X-axis `jalali_month_name`, metric `COUNT(*)`,
+  sorted by `jalali_month_num`. Values match the same chart on a virtual dataset of
   the same table built with `jalali_columns` + `jalali_join`; the generated SQL
   has no join and filters the real date column.
 - [ ] **Dashboard.** Add the chart to a dashboard with a Jalali Time range

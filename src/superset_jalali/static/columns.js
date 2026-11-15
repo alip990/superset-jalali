@@ -86,6 +86,7 @@
       column: $('column').value, fields: chosen, prefix: $('prefix').value, tz: $('tz').value || null
     }).then(function (data) {
       show('ok', 'ساخته شد: ' + names(data.created) + '\nبه‌روز شد: ' + names(data.updated) +
+        (data.removed && data.removed.length ? '\nحذف شد (منسوخ): ' + names(data.removed) : '') +
         '\n\nستون‌ها اضافه شد. در Explore از ستون‌های jalali_* برای گروه‌بندی استفاده کنید؛ فیلتر تاریخ را روی ستون اصلی بگذارید.');
       return load(true);
     }).catch(function (error) { show('error', error.message); });

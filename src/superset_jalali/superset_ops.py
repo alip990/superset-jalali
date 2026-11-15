@@ -1,5 +1,5 @@
 """Create and remove the Jalali calculated columns on Superset datasets; Superset is imported lazily."""
-from .columns import ColumnsError, is_temporal, plan_columns, remove_plan
+from .columns import ColumnsError, is_temporal, obsolete_plan, plan_columns, remove_plan
 
 
 class ForbiddenError(ColumnsError):
@@ -78,17 +78,21 @@ def _as_user(user, action):
 
 
 def add_jalali_columns(dataset_id, source_column, fields=None, prefix='jalali_', tz=None, *, user):
-    """Create or update the calculated columns; returns {'created': [...], 'updated': [...]}."""
+    """Create or update the calculated columns, and drop the plugin's obsolete ones (fields it no longer has,
+    names it no longer uses); returns {'created': [...], 'updated': [...], 'removed': [...]}."""
     def action():
         dataset = _dataset(dataset_id)
         existing = {column.column_name: column for column in dataset.columns}
         plan = plan_columns([_column(column) for column in existing.values()], source_column, fields, prefix, tz)
         planned = {column['column_name']: column for column in plan}
-        payload = [{'id': column.id, 'column_name': name, **planned.pop(name, {})} for name, column in existing.items()]
+        obsolete = obsolete_plan([_column(column) for column in existing.values()], set(planned))
+        payload = [{'id': column.id, 'column_name': name, **planned.pop(name, {})}
+                   for name, column in existing.items() if name not in obsolete]
         _update(dataset, payload + list(planned.values()))
         names = [column['column_name'] for column in plan]
         return {'created': [name for name in names if name not in existing],
-                'updated': [name for name in names if name in existing]}
+                'updated': [name for name in names if name in existing],
+                'removed': obsolete}
     return _as_user(user, action)
 
 
