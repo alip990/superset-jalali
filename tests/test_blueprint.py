@@ -45,6 +45,20 @@ def test_smart_date_flag_is_passed_in_the_bundle_url(app, setting, query):
     assert client.get(url).status_code == 200
 
 
+@pytest.mark.parametrize('settings,query', [
+    ({'jalali_calendar_heatmap': True}, '?cal_heatmap=1'),
+    ({'jalali_calendar_heatmap': 1}, ''),
+    ({'jalali_smart_date': True, 'jalali_calendar_heatmap': True}, '?smart_date=1&cal_heatmap=1'),
+    ({'jalali_smart_date': False, 'jalali_calendar_heatmap': True}, '?cal_heatmap=1'),
+])
+def test_calendar_heatmap_flag_is_passed_in_the_bundle_url(app, settings, query):
+    app.config['JALALI'] = settings
+    client = app.test_client()
+    url = client.get('/dynamic-plugins/api/read', headers={'X-Test-Guest': 'yes'}).json['result'][0]['bundle_url']
+    assert url == '/superset-jalali/static/jalali-12345678.js' + query
+    assert client.get(url).status_code == 200
+
+
 def test_internal_error_and_missing_bundle(app, monkeypatch):
     def fail(): raise RuntimeError('test')
     monkeypatch.setattr(bp, '_bundle_url', fail)

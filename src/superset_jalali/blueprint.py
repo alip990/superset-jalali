@@ -25,10 +25,11 @@ def _manifest_bundle():
 def _bundle_url():
     root = request.script_root or current_app.config.get('APPLICATION_ROOT', '')
     url = root.rstrip('/') + '/superset-jalali/static/' + _manifest_bundle()
-    # The bundle reads its own URL (import.meta.url): Jalali smart_date formatters for every chart.
-    if current_app.config.get('JALALI', {}).get('jalali_smart_date', False) is True:
-        url += '?smart_date=1'
-    return url
+    # The bundle reads its own URL (import.meta.url), so settings reach the browser without another request.
+    settings = current_app.config.get('JALALI', {})
+    flags = [name for key, name in (('jalali_smart_date', 'smart_date'), ('jalali_calendar_heatmap', 'cal_heatmap'))
+             if settings.get(key, False) is True]
+    return url + ''.join(('?' if index == 0 else '&') + name + '=1' for index, name in enumerate(flags))
 
 
 def _enabled():

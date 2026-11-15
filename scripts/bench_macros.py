@@ -41,23 +41,23 @@ def calculated(field, lo=1390, hi=1420):
 
 def queries():
     narrow, wide = dataset(1400, 1410), dataset(1390, 1420)
-    label, day, year = calculated('month_label'), calculated('date'), calculated('year')
+    label, day, year = calculated('month_name'), calculated('date'), calculated('year')
     return [
         ('count, 1-month date filter (1390-1420)',
          f'SELECT count(*) FROM ({wide}) AS v WHERE {MONTH}'),
         ('group by jalali_date, 1-month filter (1390-1420)',
          f'SELECT jalali_date, count(*) FROM ({wide}) AS v WHERE {MONTH} GROUP BY 1'),
-        ('group by jalali_month_label, all rows (1400-1410)',
-         f'SELECT jalali_month_label, count(*) FROM ({narrow}) AS v GROUP BY 1'),
-        ('group by jalali_month_label, all rows (1390-1420)',
-         f'SELECT jalali_month_label, count(*) FROM ({wide}) AS v GROUP BY 1'),
+        ('group by jalali_month_name, all rows (1400-1410)',
+         f'SELECT jalali_month_name, count(*) FROM ({narrow}) AS v GROUP BY 1'),
+        ('group by jalali_month_name, all rows (1390-1420)',
+         f'SELECT jalali_month_name, count(*) FROM ({wide}) AS v GROUP BY 1'),
         ('count, WHERE jalali_year = 1403 (1390-1420)',
          f'SELECT count(*) FROM ({wide}) AS v WHERE jalali_year = 1403'),
         ('calculated: group by jalali_date, 1-month filter (1390-1420)',
          f'SELECT {day}, count(*) FROM {TABLE} WHERE {MONTH} GROUP BY {day}'),
-        ('calculated: group by jalali_month_label, all rows (1400-1410)',
-         f"SELECT {calculated('month_label', 1400, 1410)}, count(*) FROM {TABLE} GROUP BY {calculated('month_label', 1400, 1410)}"),
-        ('calculated: group by jalali_month_label, all rows (1390-1420)',
+        ('calculated: group by jalali_month_name, all rows (1400-1410)',
+         f"SELECT {calculated('month_name', 1400, 1410)}, count(*) FROM {TABLE} GROUP BY {calculated('month_name', 1400, 1410)}"),
+        ('calculated: group by jalali_month_name, all rows (1390-1420)',
          f'SELECT {label}, count(*) FROM {TABLE} GROUP BY {label}'),
         ('calculated: count, WHERE jalali_year = 1403 (1390-1420)',
          f'SELECT count(*) FROM {TABLE} WHERE {year} = 1403'),

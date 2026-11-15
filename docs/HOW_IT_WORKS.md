@@ -104,7 +104,7 @@ evaluates `G` once per simple `CASE`.
 ### One definition of each field
 
 `_field_expressions(date, nowruz, prev_nowruz, year_after, year_before, digits)`
-is the only code that knows how to compute the 15 fields (month and day from the
+is the only code that knows how to compute the 12 fields (month and day from the
 day of year, season, weekday, labels, Persian digits, week start, the NULL
 wrapper). It receives the four values of the row's year-table entry, not an
 already chosen year, so it can convert a second date with the same entry:
@@ -113,11 +113,27 @@ previous Jalali year (1403/01/01 is a Wednesday; its Saturday is 1402/12/26)
 or the previous Gregorian year (2025-01-02 → 2024-12-28), but
 `W >= D - 6 >= 1 January - 6 > prev_nowruz`, so `W >= NZ ? year_after :
 year_before` and the matching Nowruz are still correct. `jalali_columns()`
-passes the join alias's columns; `jalali()` passes the `CASE` expressions above. `tests/test_sql_postgres.py` compares both paths
-for every day from 1985 to 2045 in three year windows, with Persian digits and
-for `timestamptz` in Tehran. The single expression is longer (up to about 25 KB
-for `month_label`) and about 2-2.5x slower on full-history aggregations; see
-the README benchmark.
+passes the join alias's columns; `jalali()` passes the `CASE` expressions above.
+`tests/test_sql_postgres.py` compares both paths for every day from 1985 to
+2045 in three year windows, with Persian digits and for `timestamptz` in
+Tehran. The single expression is longer (up to about 25 KB) and about 2-2.5x
+slower on full-history aggregations; see the README benchmark.
+
+Two fields need more than the year row:
+- `week_of_year` is `(D - NZ + weekday(NZ)) / 7 + 1`, with `NZ` the Nowruz of the
+  row's Jalali year and `weekday(NZ)` its Saturday-first weekday (0 = Saturday).
+  Week 1 is therefore the week that contains 1 Farvardin, the definition of
+  `jdatetime`'s `weeknumber()`, which `tests/test_sql_postgres.py` uses as the
+  independent reference for every day from 2008 to 2043.
+- `week_start` is `to_char(W, 'YYYY-MM-DD')`, a Gregorian date as **text**.
+  Superset draws a `DATE` column on a time axis (ECharts chooses its own ticks,
+  so the labels `Thu 13`, `Mon 17` … do not sit on the week-start bars); text is
+  a category axis where each bar carries its own date. `to_char` does not
+  depend on the session's `DateStyle`, unlike `date::text`. The column is named
+  without the `jalali_` prefix (`macros.column_name`).
+
+`month`, `month_label`, `season_key` and `weekday_key` were removed in 0.4.0;
+`weekday_num` now starts at 1.
 
 ### Adding the calculated columns
 
@@ -128,13 +144,21 @@ identifier, and returns one column per field with expression
 marker in `extra`:
 
 ```json
-{"superset_jalali": {"source": "OccouredDate", "field": "month_label", "version": 1}}
+{"superset_jalali": {"source": "OccouredDate", "field": "month_name", "version": 2}}
 ```
 
 Physical datasets are queried as `FROM schema.table` without an alias, so the
 source is not prefixed. Existing columns with a target name and no marker are a
 conflict (409); marked ones are updated in place. Removal deletes only marked
 columns.
+
+Adding also drops **obsolete** marked columns in the same update
+(`columns.obsolete_plan`): those whose field the plugin no longer has (an
+expression calling `jalali(..., 'month_label')` would raise an error), and a
+`jalali_week_start` once its replacement `week_start` is planned. The marker
+version is 2 since the rename; an existing column's expression calls
+`jalali()`, so `weekday_num` and `week_start` change meaning for old columns
+as soon as the plugin is upgraded.
 
 `superset_ops` applies the plan with Superset's own `UpdateDatasetCommand`
 rather than writing `TableColumn` rows directly. In 6.1.0 the command accepts
@@ -219,3 +243,40 @@ bundle and checks this.
   Gregorian dates in the global mode) until it renders again (Run, a control
   change or a resize). The bundle is small and cached as immutable, so this is
   rare and only on a cold Explore load.
+
+### Jalali Calendar Heatmap
+
+`cal_heatmap` is a legacy chart: Superset's `transformProps` turns the
+`explore_json` response into `{data: {metric: {epochSeconds: value}}, start, domain, subdomain, range, ...}`
+and its component draws it with the vendored `cal-heatmap` library
+([legacy-plugin-chart-calendar/src/Calendar.ts](https://github.com/apache/superset/blob/6.1.0/superset-frontend/plugins/legacy-plugin-chart-calendar/src/Calendar.ts)),
+which builds months and weeks from JavaScript's Gregorian calendar. Everything
+else about the chart (controls, query, transformProps) can stay.
+
+`ChartPlugin.register()` stores the component in the shared
+`ChartComponentRegistry` as a loader
+([ChartPlugin.ts](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/chart/models/ChartPlugin.ts)),
+and `SuperChartCore` asks that registry for the component on every render
+([SuperChartCore.tsx](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/chart/components/SuperChartCore.tsx)).
+With `JALALI["jalali_calendar_heatmap"]` the bundle (read from `?cal_heatmap=1`
+on its URL, like `smart_date`) removes the entry for `cal_heatmap` and registers
+its own component under the same key. `remove` also drops the registry's cached
+promise of the original. The original loader is kept and called only when
+needed.
+
+The replacement uses Superset's props unchanged. For domain month/year with
+subdomain day it sums the values per UTC day (the backend's day keys), covers
+the range `range` Gregorian domains from `start` (the start's own month or year
+counts as the first) plus any day with data outside it, and draws one SVG block
+per Jalali month or year with `calendarLayout.ts`: a column per week,
+Saturday-first rows, columns right to left. Colours come from
+`getSequentialSchemeRegistry()`'s `createLinearScale`, like the original.
+Anything else (other domains, years outside 1350–1550, more than 60 blocks)
+renders Superset's original component with the same props. That component is an
+emotion-styled `forwardRef` object, not a function, so it is held in a box
+before being rendered.
+
+The load-order limits are the same as for the time formats above: dashboards
+wait for the bundle; in Explore a chart drawn before it loaded keeps Superset's
+drawing until it renders again (observed: a cold Explore load already drew
+Jalali).

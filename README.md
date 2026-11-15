@@ -140,10 +140,10 @@ heatmaps: [docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts).
 ## Jalali columns without SQL
 
 A dataset created from a table in **Datasets → + Dataset** (a physical
-dataset) can get Jalali columns in one click. The plugin adds up to 15
+dataset) can get Jalali columns in one click. The plugin adds up to 12
 **calculated columns** to the dataset; each one is a single expression that
 calls the `jalali(col, field)` Jinja function, for example
-`{{ jalali('"OccouredDate"', 'month_label') }}`. Nobody types SQL.
+`{{ jalali('"OccouredDate"', 'month_name') }}`. Nobody types SQL.
 
 ### Which path to use
 
@@ -154,16 +154,16 @@ calls the `jalali(col, field)` Jinja function, for example
 | Speed | Fine with a date filter; slower on full-history charts | Fastest; best for large tables and full-history charts |
 | Values | Identical (checked row by row in CI) | Identical |
 
-Measured on 2026-10-26 with `scripts/bench_macros.py`: 5,000,000 rows,
+Measured on 2026-11-15 with `scripts/bench_macros.py`: 5,000,000 rows,
 PostgreSQL 16.15 on aarch64, index on the date column, best of 3:
 
 | Query | Virtual dataset (join) | Calculated columns |
 | --- | --- | --- |
-| Group by `jalali_date`, one-month date filter | 0.061 s | 0.117 s |
-| Group by `jalali_month_label`, all rows, years 1400–1410 | 4.47 s | 8.73 s |
-| Group by `jalali_month_label`, all rows, years 1390–1420 | 4.49 s | 11.36 s |
-| Count where `jalali_year = 1403` (avoid this) | 1.02 s | 2.68 s |
-| Plain SQL, group by Gregorian month, all rows | 1.23 s | 1.23 s |
+| Group by `jalali_date`, one-month date filter | 0.064 s | 0.127 s |
+| Group by `jalali_month_name`, all rows, years 1400–1410 | 5.27 s | 6.05 s |
+| Group by `jalali_month_name`, all rows, years 1390–1420 | 5.26 s | 7.24 s |
+| Count where `jalali_year = 1403` (avoid this) | 1.11 s | 2.81 s |
+| Plain SQL, group by Gregorian month, all rows | 1.35 s | 1.35 s |
 
 With a dashboard date filter both are fast; for full-history charts on very
 large tables prefer the virtual dataset.
@@ -188,7 +188,7 @@ large tables prefer the virtual dataset.
 1. Open **Settings → Data → Jalali columns**, or `/superset-jalali/columns/`.
 2. Choose the dataset and its date column. Only PostgreSQL datasets you may
    edit, and their physical date/timestamp columns, are listed.
-3. Keep all 15 fields checked (or pick some), keep the prefix `jalali_`.
+3. Keep all 12 fields checked (or pick some), keep the prefix `jalali_`.
    Choose timezone **Asia/Tehran** only for `timestamptz` columns.
 4. Click «افزودن ستون‌های جلالی». The columns appear in **Edit dataset →
    Calculated columns**. «حذف ستون‌های جلالی» removes only the columns the
@@ -198,7 +198,7 @@ large tables prefer the virtual dataset.
 
 ```sh
 superset jalali add-columns --dataset CR.DeviceCrime --column OccouredDate
-superset jalali add-columns --dataset 12 --column created_at --tz Asia/Tehran --fields year,month_label
+superset jalali add-columns --dataset 12 --column created_at --tz Asia/Tehran --fields year,month_name
 superset jalali remove-columns --dataset CR.DeviceCrime --column OccouredDate
 ```
 
@@ -214,41 +214,50 @@ superset jalali remove-columns --dataset CR.DeviceCrime --column OccouredDate
 | `jalali_day` | INTEGER | روز ماه جلالی | 18 |
 | `jalali_date` | VARCHAR | تاریخ جلالی | 1403/07/18 |
 | `jalali_date_int` | INTEGER | تاریخ جلالی (عددی) | 14030718 |
-| `jalali_month` | VARCHAR | ماه جلالی (کلید) | 1403-07 |
 | `jalali_month_name` | VARCHAR | نام ماه جلالی | مهر |
-| `jalali_month_label` | VARCHAR | ماه جلالی | 1403-07 مهر |
 | `jalali_season` | VARCHAR | فصل جلالی | پاییز |
-| `jalali_season_key` | VARCHAR | فصل جلالی (کلید) | 1403-3 پاییز |
 | `jalali_weekday` | VARCHAR | روز هفته | چهارشنبه |
-| `jalali_weekday_num` | INTEGER | شماره روز هفته (شنبه = ۰) | 4 |
-| `jalali_week_start` | DATE | شروع هفته (شنبه) | 2024-10-05 |
+| `jalali_weekday_num` | INTEGER | شماره روز هفته (شنبه = ۱) | 5 |
+| `jalali_week_of_year` | INTEGER | هفته از سال | 30 |
+| `week_start` | VARCHAR | شروع هفته (شنبه، میلادی) | 2024-10-05 |
 | `jalali_week_start_date` | VARCHAR | شروع هفته (تاریخ جلالی) | 1403/07/14 |
-| `jalali_weekday_key` | VARCHAR | روز هفته (مرتب) | 5 چهارشنبه |
 
 The Persian name is the column's label in Explore. Values follow the
 `sql_min_year`/`sql_max_year` window, `sql_digits` and `sql_timezone` settings,
 and are NULL for NULL dates or dates outside the window, exactly as in the
 virtual-dataset macros.
 
-`jalali_week_start_date` is the Jalali date of the Saturday that starts the
-row's week, formatted like `jalali_date`; it sorts correctly as text, so use it
-for weekly charts. It is NULL when that Saturday falls before `sql_min_year`
-(the first days of the window), even if the row's own date is inside it.
-`jalali_week_start` stays a real `DATE` for date maths: Superset formats every
-`DATE` in Gregorian unless the chart's time format is a Jalali one (see
-[Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)), and it must
-not be used with the **Week** time grain, which moves it to Monday.
-`jalali_weekday_key` (`1 شنبه` … `7 جمعه`) sorts Saturday→Friday, unlike the
-plain weekday names.
+**Weeks.** Weeks run Saturday→Friday.
+- `jalali_weekday_num` is 1 for Saturday … 7 for Friday.
+- `jalali_week_of_year` is the week number in the Jalali year: week 1 is the
+  week that contains 1 Farvardin, so the last days of a year can be in week 53
+  or 54. It matches `jdatetime`'s `weeknumber()`.
+- `week_start` is the Gregorian date of the Saturday that starts the row's week,
+  as **text** (`2024-10-05`). It has no `jalali_` prefix because it is not
+  Jalali: the default prefix `jalali_` is dropped for this column, and any other
+  prefix is kept (`created_` gives `created_week_start`). It is text, not a `DATE`, because Superset draws a
+  `DATE` on a time axis whose tick labels (`Thu 13`, `Mon 17` …) do not fall on
+  the week starts; as text each bar is labelled with its own date. Sort the axis
+  ascending: ISO dates sort in date order.
+- `jalali_week_start_date` is the Jalali date of the same Saturday, formatted
+  like `jalali_date`. It is NULL when that Saturday falls before `sql_min_year`
+  (the first days of the window), even if the row's own date is inside it.
+
+**Removed fields.** `month`, `month_label`, `season_key` and `weekday_key` no
+longer exist. Group a monthly chart by `jalali_year` and `jalali_month_num`
+(or `jalali_month_name`), and sort weekdays by `jalali_weekday_num`. After
+upgrading, run `superset jalali add-columns` (or the page) again on each
+dataset: it deletes the plugin's columns that use a removed field, replaces
+`jalali_week_start` by `week_start`, and updates the other columns.
 
 ### Rules
 
 - **Filter dashboards on the real date column.** Keep it as the dataset's
   temporal column; the Jalali picker filters it with an index-friendly range.
 - **Never filter on a Jalali column** (`jalali_year = 1403`, a Select filter on
-  `jalali_month`): every row is converted first and the index is not used.
-- **Sort month labels by `jalali_month` or `jalali_date_int`**, not by the
-  Persian name; `jalali_month_label` itself also sorts correctly as text.
+  `jalali_month_num`): every row is converted first and the index is not used.
+- **Sort months by `jalali_month_num` or `jalali_date_int`**, not by the
+  Persian name.
 - `ENABLE_TEMPLATE_PROCESSING` must stay on, or the columns stop rendering.
 - Existing columns with the same name and not created by the plugin are never
   overwritten: the action fails with a conflict (HTTP 409) and lists them.
@@ -288,20 +297,17 @@ window, and NULL source dates, produce NULL in **all** derived columns.
 | `jalali_day` | integer | 18 |
 | `jalali_date` | text | 1403/07/18 |
 | `jalali_date_int` | integer | 14030718 |
-| `jalali_month` | text | 1403-07 |
 | `jalali_month_name` | text | مهر |
-| `jalali_month_label` | text | 1403-07 مهر |
 | `jalali_season` | text | پاییز |
-| `jalali_season_key` | text | 1403-3 پاییز (seasons 1–4) |
 | `jalali_weekday` | text | چهارشنبه |
-| `jalali_weekday_num` | integer | 4 (Saturday=0) |
-| `jalali_week_start` | date | 2024-10-05 (Saturday, Gregorian date) |
+| `jalali_weekday_num` | integer | 5 (Saturday = 1 … Friday = 7) |
+| `jalali_week_of_year` | integer | 30 (week 1 contains 1 Farvardin) |
+| `week_start` | text | 2024-10-05 (Saturday, Gregorian date; no `jalali_` prefix) |
 | `jalali_week_start_date` | text | 1403/07/14 (the same Saturday, Jalali) |
-| `jalali_weekday_key` | text | 5 چهارشنبه (sorts Saturday→Friday) |
 
-`jalali_season_key` combines the year, season number (1–4) and Persian name,
-for example `1403-3 پاییز`. It sorts chronologically and reads well as a chart
-label. Weekday labels use Persian ZWNJ spelling: یک‌شنبه، سه‌شنبه، پنج‌شنبه.
+Weekday labels use Persian ZWNJ spelling: یک‌شنبه، سه‌شنبه، پنج‌شنبه. See
+*Weeks* above for the week columns; `week_start` drops only the default prefix
+`jalali_`, so two date columns with their own prefixes keep distinct names.
 
 Use `alias` and `prefix` to add more than one source date:
 
@@ -325,10 +331,10 @@ avoid dataset collisions.
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
 
-`jalali(col, field, tz=None, digits=None)` returns one of the 15 fields as a
+`jalali(col, field, tz=None, digits=None)` returns one of the 12 fields as a
 single expression, with no join, for calculated columns or any SQL where a join
 is not possible. `field` is a column name without the prefix, such as `year`
-or `month_label`; other arguments behave as in `jalali_columns`. Its values
+or `month_name`; other arguments behave as in `jalali_columns`. Its values
 are identical to the join's.
 
 ### Performance
@@ -339,7 +345,7 @@ are identical to the join's.
   PostgreSQL then uses the date index and computes Jalali values only for the
   filtered rows.
 - Do not filter on a Jalali column, such as `jalali_year = 1403` or a Select
-  filter on `jalali_month`: the index cannot be used and every row is converted
+  filter on `jalali_month_num`: the index cannot be used and every row is converted
   first.
 - Full-history charts over millions of rows still compute labels for each row;
   rely on the Superset data cache, or a pre-aggregated table if needed.
@@ -393,6 +399,7 @@ JALALI = {
     "sql_timezone": None,
     "columns_ui_enabled": True,
     "jalali_smart_date": False,
+    "jalali_calendar_heatmap": False,
 }
 ```
 
@@ -405,6 +412,7 @@ JALALI = {
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 | `columns_ui_enabled` | `True` | `False` hides the Jalali columns page and menu link; the page and its API return 404. The CLI and existing columns keep working. Independent of `datefilter_enabled`. |
 | `jalali_smart_date` | `False` | `True` replaces Superset's default `smart_date` time formats with Jalali ones in every chart ([Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle (`datefilter_enabled`). |
+| `jalali_calendar_heatmap` | `False` | `True` makes Superset's **Calendar Heatmap** chart draw Jalali months, for existing charts too ([docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle. |
 
 The join cost barely depends on the SQL year window; narrow it only to
 NULL out unwanted years. The SQL settings do not restrict the picker's calendar.

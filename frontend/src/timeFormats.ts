@@ -85,7 +85,9 @@ export function registerTimeFormats(registry: TimeFormatterRegistry, TimeFormatt
   }
 }
 
-/** True when the bundle URL asks for the global smart_date mode (JALALI['jalali_smart_date']). */
-export const smartDateFromUrl = (url: string) => {
-  try {return new URL(url).searchParams.get('smart_date') === '1';} catch {return false;}
+/** True when the bundle URL carries ?name=1: flags that JALALI[...] settings pass to the browser (blueprint.py). */
+export const flagFromUrl = (url: string, name: string) => {
+  try {return new URL(url).searchParams.get(name) === '1';} catch {return false;}
 };
+/** JALALI['jalali_smart_date'] */
+export const smartDateFromUrl = (url: string) => flagFromUrl(url, 'smart_date');

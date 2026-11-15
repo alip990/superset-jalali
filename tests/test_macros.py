@@ -7,8 +7,8 @@ from superset_jalali.macros import jalali, jalali_columns, jalali_join
 def test_sql_parses_and_columns():
     sql = f'SELECT t.*, {jalali_columns("t.created_at")} FROM events t {jalali_join("t.created_at")}'
     tree = sqlglot.parse_one(sql, read='postgres')
-    assert len(tree.expressions) == 16
-    assert 'jalali_week_start' in sql
+    assert len(tree.expressions) == 13
+    assert 'AS week_start' in sql and 'jalali_week_start' not in sql.replace('jalali_week_start_date', '')
     assert 'LEFT JOIN' in sql
     assert '1390' in sql and '1421' not in sql
 
@@ -45,7 +45,7 @@ def test_quoted_column_is_emitted_verbatim():
         assert '(t."OccouredDate")::date' in sql
         assert 't.OccouredDate' not in sql and 'occoureddate' not in sql
     tree = sqlglot.parse_one(f'SELECT t.*, {cols} FROM "CR"."DeviceCrime" t {join}', read='postgres')
-    assert len(tree.expressions) == 16
+    assert len(tree.expressions) == 13
     columns = {column.sql(dialect='postgres') for column in tree.find_all(sqlglot.exp.Column) if column.table == 't'}
     assert columns == {'t.*', 't."OccouredDate"'}
 
@@ -91,32 +91,6 @@ def test_each_column_is_null_on_unmatched_year():
         assert case.args['ifs'][0].this.sql(dialect='postgres') == f'({YEAR}) IS NOT NULL'
     with pytest.raises(ValueError): jalali_columns('x', prefix='a' * 60)
     with pytest.raises(ValueError): jalali_join('x', alias='a' * 64)
-
-
-@pytest.mark.parametrize('month,expected', [(1, '1403-1 بهار'), (4, '1403-2 تابستان'), (7, '1403-3 پاییز'), (10, '1403-4 زمستان')])
-@pytest.mark.parametrize('digits', ['latin', 'persian'])
-def test_season_key_has_sortable_number_and_readable_name(month, expected, digits):
-    import sqlite3
-    from sqlglot import exp
-    from datetime import date
-    from superset_jalali.calendar import j2g
-    doy = (j2g(1403, month, 1) - date(2024, 3, 20)).days
-    tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d', digits=digits), read='postgres')
-    column = next(column for column in tree.expressions if column.alias == 'jalali_season_key')
-    # Supply the derived year and elapsed days; execute the emitted CASE/concatenation.
-    def values(node):
-        if isinstance(node, exp.Case) and node.sql(dialect='postgres') == YEAR:
-            return exp.Literal.number(1403)
-        if isinstance(node, exp.Sub) and node.right.unnest().sql(dialect='postgres') == START:
-            return exp.Literal.number(doy)
-        return node
-    sql = exp.select(column.transform(values)).sql(dialect='sqlite')
-    with sqlite3.connect(':memory:') as connection:
-        connection.create_function('TRANSLATE', 3, lambda text, a, b: text.translate(str.maketrans(a, b)))
-        actual = connection.execute(sql).fetchone()[0]
-    if digits == 'persian':
-        expected = expected.translate(str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹'))
-    assert actual == expected
 
 
 @pytest.mark.parametrize('tz,expression', [
@@ -232,14 +206,33 @@ def test_values_rows_cover_the_window_once_per_gregorian_year(lo, hi):
         day += timedelta(1 if lo != 1350 or hi != 1550 else 7)
 
 
-ALIASES = ['jalali_year', 'jalali_month_num', 'jalali_day', 'jalali_date', 'jalali_date_int', 'jalali_month',
-           'jalali_month_name', 'jalali_month_label', 'jalali_season', 'jalali_season_key',
-           'jalali_weekday', 'jalali_weekday_num', 'jalali_week_start', 'jalali_week_start_date', 'jalali_weekday_key']
+ALIASES = ['jalali_year', 'jalali_month_num', 'jalali_day', 'jalali_date', 'jalali_date_int', 'jalali_month_name',
+           'jalali_season', 'jalali_weekday', 'jalali_weekday_num', 'jalali_week_of_year', 'week_start',
+           'jalali_week_start_date']
+REMOVED = ['month', 'month_label', 'season_key', 'weekday_key']
 
 
 def test_columns_keep_their_names_and_order():
     tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d'), read='postgres')
     assert [column.alias for column in tree.expressions] == ALIASES
+
+
+def test_removed_fields_are_gone_everywhere():
+    tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d'), read='postgres')
+    names = {column.alias for column in tree.expressions}
+    for field in REMOVED:
+        assert 'jalali_' + field not in names and field not in names
+        with pytest.raises(ValueError, match='Invalid Jalali field'): jalali('t.d', field)
+
+
+@pytest.mark.parametrize('prefix,week_start', [('jalali_', 'week_start'), ('created_', 'created_week_start'),
+                                               ('', 'week_start'), ('jalali_1_', 'jalali_1_week_start'),
+                                               ('jalali_x_', 'jalali_x_week_start')])
+def test_the_gregorian_week_start_drops_the_jalali_prefix(prefix, week_start):
+    tree = sqlglot.parse_one('SELECT ' + jalali_columns('t.d', prefix=prefix), read='postgres')
+    names = [column.alias for column in tree.expressions]
+    assert week_start in names and prefix + 'week_start_date' in names
+    assert names.count(prefix + 'year') == 1
 
 
 @pytest.mark.parametrize('field', [alias.removeprefix('jalali_') for alias in ALIASES])
@@ -257,13 +250,13 @@ def test_single_field_is_one_expression(field):
 
 def test_single_field_rejects_unknown_fields_and_identifiers():
     for field in ['years', 'jalali_year', '', 'YEAR', None]:
-        with pytest.raises(ValueError, match='month_label'): jalali('t.d', field)
+        with pytest.raises(ValueError, match='week_of_year'): jalali('t.d', field)
     for bad in QUOTED_BAD + ['x;drop table t', '']:
         with pytest.raises(ValueError): jalali(bad, 'year')
 
 
 def test_single_field_quotes_mixed_case_columns():
-    sql = jalali('t."OccouredDate"', 'month_label')
+    sql = jalali('t."OccouredDate"', 'date')
     assert '(t."OccouredDate")::date' in sql and 'OccouredDate)' not in sql
     sqlglot.parse_one(f'SELECT {jalali(chr(34) + "OccouredDate" + chr(34), "date")} FROM "MixedCase"', read='postgres')
 
@@ -278,7 +271,7 @@ def test_single_field_timezone_and_digits_match_jalali_columns(bad):
     app = _window(1403, 1404)
     app.config['JALALI'].update(sql_timezone='UTC', sql_digits='persian')
     with app.app_context():
-        sql = jalali('t.d', 'month')
+        sql = jalali('t.d', 'date')
         assert "AT TIME ZONE 'UTC'" in sql and 'translate(' in sql and 'THEN 1402' not in sql
         app.config['JALALI']['sql_max_year'] = 1551
         with pytest.raises(ValueError): jalali('t.d', 'year')
