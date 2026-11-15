@@ -282,20 +282,27 @@ default time format (time-series axes and tooltips, Table, Heatmap) shows Jalali
 dates without per-chart settings. Charts with an explicit format such as
 `%Y-%m-%d` keep it. Off by default; restart Superset and reload the page.
 
-### Calendar Heatmap in Jalali (optional)
+### Calendar Heatmap in Jalali (on by default)
 
 Superset's **Calendar Heatmap** draws Gregorian month blocks with its own
-library, which no format can change. With
+library, which no format can change. The bundle replaces that chart's drawing
+code, so every existing Calendar Heatmap (dashboards, embedded dashboards,
+Explore) shows one card per Jalali month, with no setting to change. To keep
+Superset's own Gregorian chart, turn it off and restart:
 
 ```python
-JALALI = {**JALALI, "jalali_calendar_heatmap": True}
+JALALI = {**JALALI, "jalali_calendar_heatmap": False}
 ```
 
-the bundle replaces that chart's drawing code, so every existing Calendar
-Heatmap (dashboards, embedded dashboards, Explore) shows one block per Jalali
-month, weeks running Saturday→Friday from right to left, with tooltips like
-`پنج‌شنبه ۱۴۰۳/۱۲/۳۰: 2.91k`. Query, controls, colour scheme, legend, cell
-size/padding/radius and "Show values" are Superset's own. Domain **month** or
+The chart shows the month name and year on each card, weekday letters (Friday in
+red), rounded cells that grow to fill the width (never smaller than the chart's
+Cell Size, at most 30 px), a gradient legend with the lowest and highest value,
+a ring on today (Tehran date), faint cells for days outside the time range and
+slightly darker ones for days in it without data, readable numbers on every
+colour with "Show values", and a tooltip like `پنج‌شنبه ۱۴۰۳/۱۲/۳۰` with the
+value. Query, controls, colour scheme and "Show values" are Superset's own;
+Cell Size and Cell Padding are used as the smallest size and the gap, and Cell
+Radius as the minimum rounding. Domain **month** or
 **year** with subdomain **day** is drawn in Jalali; any other combination, and
 dates outside 1350–1550, are drawn by Superset's original chart. The tooltip
 date is always Jalali, whatever the chart's Time format says.

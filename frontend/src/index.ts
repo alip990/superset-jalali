@@ -1,7 +1,7 @@
 import { core } from './shims';
 import { DateFilter } from './DateFilter';
 import { registerCalendarHeatmap } from './calendarHeatmap';
-import { flagFromUrl, registerTimeFormats, smartDateFromUrl } from './timeFormats';
+import { calendarHeatmapFromUrl, registerTimeFormats, smartDateFromUrl } from './timeFormats';
 declare const __VERSION__: string;
 const reg = core.getExtensionsRegistry();
 if (!reg.get('filter.dateFilterControl')) reg.set('filter.dateFilterControl', DateFilter);
@@ -12,8 +12,8 @@ try {
   console.error('superset-jalali: Jalali time formats not registered', error);
 }
 try {
-  // ?cal_heatmap=1 is JALALI['jalali_calendar_heatmap']: Superset's Calendar Heatmap draws Jalali months.
-  if (flagFromUrl(import.meta.url, 'cal_heatmap')) registerCalendarHeatmap(core.getChartComponentRegistry());
+  // On unless ?cal_heatmap=0 (JALALI['jalali_calendar_heatmap'] = False): Superset's Calendar Heatmap draws Jalali months.
+  if (calendarHeatmapFromUrl(import.meta.url)) registerCalendarHeatmap(core.getChartComponentRegistry());
 } catch (error) {
   console.error('superset-jalali: Jalali calendar heatmap not registered', error);
 }

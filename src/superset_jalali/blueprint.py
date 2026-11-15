@@ -27,9 +27,13 @@ def _bundle_url():
     url = root.rstrip('/') + '/superset-jalali/static/' + _manifest_bundle()
     # The bundle reads its own URL (import.meta.url), so settings reach the browser without another request.
     settings = current_app.config.get('JALALI', {})
-    flags = [name for key, name in (('jalali_smart_date', 'smart_date'), ('jalali_calendar_heatmap', 'cal_heatmap'))
-             if settings.get(key, False) is True]
-    return url + ''.join(('?' if index == 0 else '&') + name + '=1' for index, name in enumerate(flags))
+    flags = []
+    if settings.get('jalali_smart_date', False) is True:
+        flags.append('smart_date=1')
+    # The Calendar Heatmap is Jalali by default: no parameter when it is on, ?cal_heatmap=0 when it is off.
+    if settings.get('jalali_calendar_heatmap', True) is not True:
+        flags.append('cal_heatmap=0')
+    return url + ''.join(('?' if index == 0 else '&') + flag for index, flag in enumerate(flags))
 
 
 def _enabled():

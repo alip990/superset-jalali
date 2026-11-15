@@ -134,7 +134,8 @@ The bundle adds the time formats `jalali_date`, `jalali_datetime`,
 `jalali_month`, `jalali_year` and `jalali_smart` to Superset: type one in a
 chart's **Time format** box to show a real date column in Jalali, for example on
 a Heatmap axis. `JALALI["jalali_smart_date"] = True` makes Superset's default
-format Jalali in every chart. Recipes, including day × hour and weekday × month
+format Jalali in every chart, and Superset's Calendar Heatmap draws Jalali months
+(on by default; `JALALI["jalali_calendar_heatmap"] = False` turns it off). Recipes, including day × hour and weekday × month
 heatmaps: [docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts).
 
 ## Jalali columns without SQL
@@ -403,7 +404,7 @@ JALALI = {
     "sql_timezone": None,
     "columns_ui_enabled": True,
     "jalali_smart_date": False,
-    "jalali_calendar_heatmap": False,
+    "jalali_calendar_heatmap": True,
 }
 ```
 
@@ -416,7 +417,7 @@ JALALI = {
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 | `columns_ui_enabled` | `True` | `False` hides the Jalali columns page and menu link; the page and its API return 404. The CLI and existing columns keep working. Independent of `datefilter_enabled`. |
 | `jalali_smart_date` | `False` | `True` replaces Superset's default `smart_date` time formats with Jalali ones in every chart ([Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle (`datefilter_enabled`). |
-| `jalali_calendar_heatmap` | `False` | `True` makes Superset's **Calendar Heatmap** chart draw Jalali months, for existing charts too ([docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle. |
+| `jalali_calendar_heatmap` | `True` | Superset's **Calendar Heatmap** chart draws Jalali month cards, for existing charts too. `False` keeps Superset's Gregorian chart ([docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle. |
 
 The join cost barely depends on the SQL year window; narrow it only to
 NULL out unwanted years. The SQL settings do not restrict the picker's calendar.

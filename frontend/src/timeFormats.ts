@@ -89,5 +89,11 @@ export function registerTimeFormats(registry: TimeFormatterRegistry, TimeFormatt
 export const flagFromUrl = (url: string, name: string) => {
   try {return new URL(url).searchParams.get(name) === '1';} catch {return false;}
 };
+/** The value of ?name=... on the bundle URL, or null. */
+export const flagValue = (url: string, name: string) => {
+  try {return new URL(url).searchParams.get(name);} catch {return null;}
+};
+/** JALALI['jalali_calendar_heatmap'] is on unless the server passes ?cal_heatmap=0. */
+export const calendarHeatmapFromUrl = (url: string) => flagValue(url, 'cal_heatmap') !== '0';
 /** JALALI['jalali_smart_date'] */
 export const smartDateFromUrl = (url: string) => flagFromUrl(url, 'smart_date');
