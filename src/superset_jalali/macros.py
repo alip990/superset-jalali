@@ -21,6 +21,15 @@ def _identifier(value: str, *, dotted=False, empty=False) -> str:
     return value
 
 
+# Fields whose value is Gregorian: their column name does not carry the default "jalali_" prefix.
+GREGORIAN_FIELDS = frozenset({'week_start'})
+
+
+def column_name(prefix: str, field: str) -> str:
+    """prefix + field; a Gregorian field drops the default prefix "jalali_" (any other prefix is kept as is)."""
+    return ('' if field in GREGORIAN_FIELDS and prefix == 'jalali_' else prefix) + field
+
+
 def _config():
     return current_app.config.get('JALALI', {}) if has_app_context() else {}
 
@@ -79,23 +88,23 @@ def _field_expressions(date: str, nowruz: str, prev_nowruz: str, year_after: str
     y, start = year_and_start(date)
     m, d = month_and_day(date, start)
     season = f'(({m} - 1) / 3 + 1)'
-    weekday = f'((EXTRACT(DOW FROM {date})::int + 1) % 7)'
-    week_start = f'({date} - {weekday})'
+    weekday = f'((EXTRACT(DOW FROM {date})::int + 1) % 7)'  # Saturday = 0; weekday_num and the names add 1
+    saturday = f'({date} - {weekday})'
     # The Saturday may be in the previous Jalali year; it is NULL when that year is outside the window.
-    week_y, week_start_nowruz = year_and_start(week_start)
-    ym = f"({y}::text || '-' || lpad({m}::text, 2, '0'))"
-    month_name = label(m, MONTHS)
+    week_y, saturday_nowruz = year_and_start(saturday)
+    # Week 1 is the week (Saturday to Friday) that contains 1 Farvardin, as in jdatetime's weeknumber().
+    nowruz_weekday = f'((EXTRACT(DOW FROM {start})::int + 1) % 7)'
     expressions = {
         'year': y, 'month_num': m, 'day': d, 'date': text_date(y, m, d),
-        'date_int': f'({y} * 10000 + {m} * 100 + {d})', 'month': ym,
-        'month_name': month_name, 'month_label': f"({ym} || ' ' || {month_name})",
-        'season': label(season, SEASONS), 'season_key': f"({y}::text || '-' || {season}::text || ' ' || {label(season, SEASONS)})",
-        'weekday': label(f'({weekday} + 1)', WEEKDAYS), 'weekday_num': weekday,
-        'week_start': week_start,
-        'week_start_date': text_date(week_y, *month_and_day(week_start, week_start_nowruz)),
-        'weekday_key': f"(({weekday} + 1)::text || ' ' || {label(f'({weekday} + 1)', WEEKDAYS)})",
+        'date_int': f'({y} * 10000 + {m} * 100 + {d})', 'month_name': label(m, MONTHS),
+        'season': label(season, SEASONS),
+        'weekday': label(f'({weekday} + 1)', WEEKDAYS), 'weekday_num': f'({weekday} + 1)',
+        'week_of_year': f'(({date} - {start} + {nowruz_weekday}) / 7 + 1)',
+        # A Gregorian date as text: a DATE is drawn on Superset's time axis, whose ticks are not the week starts.
+        'week_start': f"to_char({saturday}, 'YYYY-MM-DD')",
+        'week_start_date': text_date(week_y, *month_and_day(saturday, saturday_nowruz)),
     }
-    text_fields = {'date', 'month', 'month_label', 'season_key', 'week_start_date', 'weekday_key'}
+    text_fields = {'date', 'week_start_date'}
     result = {}
     for key, expr in expressions.items():
         if digits == 'persian' and key in text_fields:
@@ -119,7 +128,7 @@ def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits
     _identifier(prefix, empty=True)
     row = (f'{alias}.{name}' for name in ('nowruz', 'prev_nowruz', 'year_after', 'year_before'))
     expressions = _field_expressions(date, *row, _digits(digits))
-    return ',\n'.join(f'{expr} AS {_identifier(prefix + key)}' for key, expr in expressions.items())
+    return ',\n'.join(f'{expr} AS {_identifier(column_name(prefix, key))}' for key, expr in expressions.items())
 
 
 def jalali(col: str, field: str, *, tz=None, digits=None) -> str:

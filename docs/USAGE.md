@@ -37,7 +37,7 @@ FROM my_table AS t
 {{ jalali_join('t.created_at') }}
 ```
 
-- `jalali_columns(...)` goes in the `SELECT` list and adds 15 columns.
+- `jalali_columns(...)` goes in the `SELECT` list and adds 12 columns.
 - `jalali_join(...)` goes after the `FROM` table and adds a small inline year
   table. It creates no database objects.
 - Use `t.*`, not `*`: the join adds helper columns (`gyear`, `nowruz`,
@@ -53,18 +53,25 @@ FROM my_table AS t
 | `jalali_day` | integer | 18 | Day of month |
 | `jalali_date` | text | 1403/07/18 | Table display, daily X axis |
 | `jalali_date_int` | integer | 14030718 | Sorting daily data |
-| `jalali_month` | text | 1403-07 | Monthly X axis (sorts correctly) |
-| `jalali_month_name` | text | مهر | Month name only |
-| `jalali_month_label` | text | 1403-07 مهر | Monthly X axis with Persian name |
+| `jalali_month_name` | text | مهر | Month name |
 | `jalali_season` | text | پاییز | Season name |
-| `jalali_season_key` | text | 1403-3 پاییز | Seasonal X axis (sorts correctly) |
 | `jalali_weekday` | text | چهارشنبه | Weekday name |
-| `jalali_weekday_num` | integer | 4 | Weekday order, Saturday = 0 |
-| `jalali_week_start` | date | 2024-10-05 | Date maths on the Saturday (shown Gregorian by default) |
-| `jalali_week_start_date` | text | 1403/07/14 | Weekly X axis (Saturday, sorts correctly) |
-| `jalali_weekday_key` | text | 5 چهارشنبه | Weekday axis sorted Saturday→Friday |
+| `jalali_weekday_num` | integer | 5 | Weekday order, Saturday = 1 … Friday = 7 |
+| `jalali_week_of_year` | integer | 30 | Week number of the Jalali year (week 1 contains 1 Farvardin) |
+| `week_start` | text | 2024-10-05 | Weekly X axis in Gregorian dates (the Saturday; no `jalali_` prefix) |
+| `jalali_week_start_date` | text | 1403/07/14 | Weekly X axis in Jalali dates (the same Saturday) |
 
-All 15 columns are NULL when the source date is NULL or falls outside the
+`week_start` is the Gregorian date of the Saturday that starts the week, as text
+that sorts in date order. It is text and not a `DATE` because Superset draws a
+`DATE` on a time axis whose tick labels do not fall on the week starts. A
+default prefix `jalali_` is dropped for this column (any other prefix is kept),
+so the default gives `week_start` and `created_` gives `created_week_start`. If your
+table already has a column called `week_start`, give the pair another prefix
+(a name clash is an error). Week 1 of `jalali_week_of_year` is the week
+(Saturday→Friday) that contains 1 Farvardin, as in `jdatetime`; the last days of
+a year can be in week 53 or 54.
+
+All 12 columns are NULL when the source date is NULL or falls outside the
 configured year window (default 1390–1420). `jalali_week_start_date` is also
 NULL when the row's Saturday falls before `sql_min_year`: for example
 1403/01/01 is a Wednesday, so with `sql_min_year: 1403` its week start
@@ -72,17 +79,19 @@ NULL when the row's Saturday falls before `sql_min_year`: for example
 
 ## 3. Build charts
 
-- **Monthly bar or line chart:** X axis `jalali_month_label` (or `jalali_month`),
-  sort by the X axis ascending, metric `COUNT(*)`.
+- **Monthly bar or line chart:** X axis a custom SQL expression
+  `jalali_year * 100 + jalali_month_num` (for example 140307), sorted ascending,
+  metric `COUNT(*)`. For a single year, X axis `jalali_month_name` sorted by
+  `jalali_month_num` also works.
 - **Daily chart:** X axis `jalali_date`, sorted ascending.
-- **Seasonal chart:** X axis `jalali_season_key`.
-- **Weekly chart:** X axis `jalali_week_start_date`, sorted ascending. Do not use
-  `jalali_week_start` for this: it is a real date for date maths, shown in
-  Gregorian unless the chart's time format is a Jalali one
-  ([section 8](#8-jalali-dates-in-charts)), and the **Week** time grain moves it
-  to Monday.
-- **Weekday chart:** X axis `jalali_weekday_key` (`1 شنبه` … `7 جمعه`), sorted
-  ascending; plain `jalali_weekday` names sort alphabetically.
+- **Seasonal chart:** X axis `jalali_season`, or the custom SQL
+  `jalali_year * 10 + (jalali_month_num - 1) / 3 + 1` sorted ascending.
+- **Weekly chart:** X axis `week_start` (Gregorian) or `jalali_week_start_date`
+  (Jalali), sorted ascending. Both are text, so each bar is labelled with its
+  own Saturday; do not rely on a time axis for this. `jalali_week_of_year`
+  gives the week number.
+- **Weekday chart:** X axis `jalali_weekday_num` (1 = Saturday … 7 = Friday),
+  sorted ascending; plain `jalali_weekday` names sort alphabetically.
 - **Table:** show `jalali_date` next to, or instead of, the Gregorian column.
 
 Keep the dataset's **real date column** (`created_at`) as the temporal column.
@@ -130,8 +139,8 @@ FROM tickets AS t
 {{ jalali_join('t.closed_at',  alias='_closed') }}
 ```
 
-This produces `created_year`, `created_month_label`, ..., `closed_year`, and so
-on. Prefixes are returned in lower case: `Created_` gives `created_year`.
+This produces `created_year`, `created_month_name`, ..., `created_week_start`,
+`closed_year`, and so on. Prefixes are returned in lower case: `Created_` gives `created_year`.
 
 ## 6. Options
 
@@ -172,13 +181,13 @@ The join matches each row to one year row by equality on the Gregorian year
 - **Filter on the real date column.** The Jalali picker does this; PostgreSQL
   uses the index and converts only the filtered rows.
 - **Avoid filters on Jalali columns** (`jalali_year = 1403`, a Select filter on
-  `jalali_month`). The index cannot be used, so every row is converted first.
+  `jalali_month_num`). The index cannot be used, so every row is converted first.
   Prefer the date picker with a Jalali range instead.
 - **Large full-history charts** still compute labels for every row. Keep the
   Superset cache enabled, or build a pre-aggregated table for very large data.
 
 Measured on 5,000,000 rows (PostgreSQL 16): a one-month filtered chart takes
-about 0.02–0.06 s; grouping all rows by `jalali_month_label` about 4.4 s
+about 0.02–0.06 s; grouping all rows by `jalali_month_name` about 5.3 s
 (previously 9–20 s). To measure on your own server:
 
 ```sh
@@ -197,11 +206,12 @@ Pick the sortable ones and sort the axis ascending:
 - **Heatmap, day × hour** (ECharts *Heatmap*): X axis `hour_of_day`, or a
   calculated column `EXTRACT(HOUR FROM created_at)`; Y axis `jalali_date`.
   Sort both axes *Axis ascending*.
-- **Heatmap, weekday × month:** X axis `jalali_weekday_key`
-  (`1 شنبه` … `7 جمعه`), Y axis `jalali_month_label`, both *Axis ascending*.
+- **Heatmap, weekday × month:** X axis `jalali_weekday_num` (1 = Saturday),
+  Y axis `jalali_month_num`, both *Axis ascending* (numbers sort numerically).
   Plain `jalali_weekday` names would sort alphabetically.
-- **Weekly charts:** `jalali_week_start_date`; monthly `jalali_month_label`;
-  seasonal `jalali_season_key`.
+- **Heatmap, week × weekday** (a calendar): X axis `jalali_weekday_num`, Y axis
+  `week_start` or `jalali_week_start_date`.
+- **Weekly charts:** `week_start` or `jalali_week_start_date`.
 
 ### Jalali time formats for real date columns
 
@@ -224,10 +234,10 @@ one into a chart's **Time format** box (*Customize*; the box accepts any value):
   bar.
 - **Time grains Month, Quarter and Year** group into Gregorian buckets
   (`DATE_TRUNC`): a Jalali label would name the Gregorian month's first day.
-  Use `jalali_month_label` or `jalali_season_key` columns on the X axis instead.
-- `jalali_week_start` is a real date: with time format `jalali_date` it shows
-  the Saturday in Jalali. Never use the **Week** time grain on it; that moves
-  it to Monday.
+  Use `jalali_year` with `jalali_month_num` (see section 3) instead.
+- The **Week** time grain groups by Monday-based Gregorian weeks. For
+  Saturday-based weeks use the text column `week_start` (or
+  `jalali_week_start_date`) without a time grain.
 
 Values are read as wall-clock times, like Superset's default formats. Dates
 outside 1350–1550, NULL and invalid values fall back to Superset's own output.
@@ -283,4 +293,4 @@ and are not affected; see [HOW_IT_WORKS](HOW_IT_WORKS.md#load-order).
 | Duplicate column name error | Use `SELECT t.*` instead of `SELECT *`, or rename the source column that clashes. |
 | Slow dashboard | Filter with the date picker on the real date column, not on Jalali columns. |
 | Axis shows the text `jalali_date` | The chart rendered before the plugin bundle loaded (Explore only); click Run. Check that `DYNAMIC_PLUGINS` is on. |
-| Weekday axis in alphabetical order | Use `jalali_weekday_key` and sort the axis ascending. |
+| Weekday axis in alphabetical order | Use `jalali_weekday_num` (1 = Saturday) and sort the axis ascending. |

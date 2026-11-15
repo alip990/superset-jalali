@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0 — unreleased
+
+**Breaking: columns removed and renamed.** After upgrading, run
+`superset jalali add-columns` (or the Jalali columns page) again on each dataset
+that has plugin columns; it deletes the obsolete ones and updates the rest. SQL
+that uses `jalali_columns()` must stop selecting the removed names.
+
+- Removed the fields `month`, `month_label`, `season_key` and `weekday_key`
+  (`jalali_columns()`, `jalali()`, the page and the CLI). Use `jalali_year` with
+  `jalali_month_num` or `jalali_month_name`, `jalali_season`, and
+  `jalali_weekday_num`.
+- `weekday_num` (`jalali_weekday_num`) now starts at 1 for Saturday (1 … 7);
+  it was 0 … 6.
+- New field `week_of_year` (`jalali_week_of_year`): the week number of the Jalali
+  year, weeks Saturday→Friday, week 1 contains 1 Farvardin (same as
+  `jdatetime`'s `weeknumber()`).
+- `week_start` is now **text** `YYYY-MM-DD` (the Gregorian date of the Saturday)
+  instead of a `DATE`, and with the default prefix its column has no `jalali_`
+  prefix (`week_start`; any other prefix is kept: `created_` gives
+  `created_week_start`). A `DATE` was drawn on Superset's time
+  axis, whose ticks did not match the week-start bars, so the shown dates looked
+  wrong. The old `jalali_week_start` calculated column is deleted when the new
+  one is added.
+- Adding columns also drops the plugin's obsolete columns (fields it no longer
+  has); the result, the CLI and the page report them as `removed`.
+- The benchmark script and README numbers use `jalali_month_name`.
+
 ## 0.3.0 — unreleased
 
 - Opt-in `JALALI["jalali_calendar_heatmap"] = True`: Superset's own **Calendar

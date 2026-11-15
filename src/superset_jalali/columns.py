@@ -2,26 +2,23 @@
 from collections import namedtuple
 import json
 import re
-from .macros import _date_expression, _identifier
+from .macros import _date_expression, _identifier, column_name
 
 Field = namedtuple('Field', 'name type label')
-# The column name is prefix + field name; the order is the order of jalali_columns().
+# The column name is prefix + field name (macros.column_name); the order is the order of jalali_columns().
 FIELDS = (
     Field('year', 'INTEGER', 'سال جلالی'),
     Field('month_num', 'INTEGER', 'شماره ماه جلالی'),
     Field('day', 'INTEGER', 'روز ماه جلالی'),
     Field('date', 'VARCHAR', 'تاریخ جلالی'),
     Field('date_int', 'INTEGER', 'تاریخ جلالی (عددی)'),
-    Field('month', 'VARCHAR', 'ماه جلالی (کلید)'),
     Field('month_name', 'VARCHAR', 'نام ماه جلالی'),
-    Field('month_label', 'VARCHAR', 'ماه جلالی'),
     Field('season', 'VARCHAR', 'فصل جلالی'),
-    Field('season_key', 'VARCHAR', 'فصل جلالی (کلید)'),
     Field('weekday', 'VARCHAR', 'روز هفته'),
-    Field('weekday_num', 'INTEGER', 'شماره روز هفته (شنبه = ۰)'),
-    Field('week_start', 'DATE', 'شروع هفته (شنبه)'),
+    Field('weekday_num', 'INTEGER', 'شماره روز هفته (شنبه = ۱)'),
+    Field('week_of_year', 'INTEGER', 'هفته از سال'),
+    Field('week_start', 'VARCHAR', 'شروع هفته (شنبه، میلادی)'),
     Field('week_start_date', 'VARCHAR', 'شروع هفته (تاریخ جلالی)'),
-    Field('weekday_key', 'VARCHAR', 'روز هفته (مرتب)'),
 )
 MARKER = 'superset_jalali'
 
@@ -80,21 +77,39 @@ def plan_columns(existing_columns, source_column, fields=None, prefix='jalali_',
         if tz is not None:
             _date_expression(quoted, tz)
         for name in fields:
-            _identifier(prefix + name)
+            _identifier(column_name(prefix, name))
     except ValueError as error:
         raise ColumnsError(str(error)) from None
     def expression(field):
         arguments = [_jinja_string(quoted), _jinja_string(field)] + ([] if tz is None else ['tz=' + _jinja_string(tz)])
         return '{{ jalali(' + ', '.join(arguments) + ') }}'
-    plan = [dict(column_name=prefix + field.name, expression=expression(field.name),
+    plan = [dict(column_name=column_name(prefix, field.name), expression=expression(field.name),
                  type=field.type, verbose_name=field.label, is_dttm=False, groupby=True, filterable=True,
-                 extra=json.dumps({MARKER: {'source': source_column, 'field': field.name, 'version': 1}}))
+                 extra=json.dumps({MARKER: {'source': source_column, 'field': field.name, 'version': 2}}))
             for field in FIELDS if field.name in fields]
     conflicts = [column['column_name'] for column in plan
                  if column['column_name'] in by_name and marker(by_name[column['column_name']]) is None]
     if conflicts:
         raise ConflictError('Columns already exist and were not created by superset-jalali: ' + ', '.join(conflicts))
     return plan
+
+
+def obsolete_plan(existing_columns, planned_names):
+    """Names of the plugin's columns that no longer fit: their field was removed from the plugin, or they were
+    named with a prefix a Gregorian field no longer takes (jalali_week_start) and planned_names holds the new name."""
+    fields = {field.name for field in FIELDS}
+    result = []
+    for column in existing_columns:
+        found = marker(column)
+        if found is None:
+            continue
+        field, name = found.get('field'), column['column_name']
+        if field not in fields:
+            result.append(name)
+        elif name.endswith(field) and name != column_name(name[:-len(field)], field) \
+                and column_name(name[:-len(field)], field) in planned_names:
+            result.append(name)
+    return result
 
 
 def remove_plan(existing_columns, source_column=None):
