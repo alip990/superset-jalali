@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — unreleased
+
+- `jalali_columns(..., fields=[...])` generates only the chosen columns, in the
+  given order, per date column (with its own `alias` and `prefix`): for example
+  `fields=['weekday_num', 'month_name']`. A list, a tuple or a comma-separated
+  string; unknown names, duplicates and empty lists are errors that list the
+  valid names. The default (all 12 columns) is unchanged.
+
 ## 0.4.0 — unreleased
 
 **Breaking: columns removed and renamed.** After upgrading, run

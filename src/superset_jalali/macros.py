@@ -122,13 +122,30 @@ def jalali_join(col: str, alias: str = '_jy', *, tz=None) -> str:
             f'  ON {alias}.gyear = EXTRACT(YEAR FROM {date})::int')
 
 
-def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None, *, tz=None) -> str:
+def _chosen(expressions: dict, fields) -> list:
+    """The field names to generate: all of them, or the given ones in the given order."""
+    if fields is None:
+        return list(expressions)
+    if isinstance(fields, str):  # 'weekday_num, month_name'
+        fields = [part.strip() for part in fields.split(',')]
+    if not isinstance(fields, (list, tuple)) or not fields:
+        raise ValueError(f'fields must be a non-empty list of Jalali field names; use some of: {", ".join(expressions)}')
+    unknown = [field for field in fields if not isinstance(field, str) or field not in expressions]
+    if unknown:
+        raise ValueError(f'Invalid Jalali field(s) {unknown!r}; use some of: {", ".join(expressions)}')
+    if len(set(fields)) != len(fields):
+        raise ValueError(f'Duplicate Jalali field(s) in {list(fields)!r}')
+    return list(fields)
+
+
+def jalali_columns(col: str, alias: str = '_jy', prefix: str = 'jalali_', digits=None, *, tz=None, fields=None) -> str:
+    """The Jalali columns for the SELECT list; fields=['weekday_num', 'month_name'] generates only those."""
     col, alias = _identifier(col, dotted=True), _identifier(alias)
     date = _date_expression(col, tz)
     _identifier(prefix, empty=True)
     row = (f'{alias}.{name}' for name in ('nowruz', 'prev_nowruz', 'year_after', 'year_before'))
     expressions = _field_expressions(date, *row, _digits(digits))
-    return ',\n'.join(f'{expr} AS {_identifier(column_name(prefix, key))}' for key, expr in expressions.items())
+    return ',\n'.join(f'{expressions[key]} AS {_identifier(column_name(prefix, key))}' for key in _chosen(expressions, fields))
 
 
 def jalali(col: str, field: str, *, tz=None, digits=None) -> str:

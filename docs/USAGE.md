@@ -142,12 +142,40 @@ FROM tickets AS t
 This produces `created_year`, `created_month_name`, ..., `created_week_start`,
 `closed_year`, and so on. Prefixes are returned in lower case: `Created_` gives `created_year`.
 
+### Only the columns you need
+
+By default `jalali_columns` adds all 12 columns. Pass `fields` to generate only
+some, per date column, like `alias` and `prefix`:
+
+```sql
+SELECT
+  t.*,
+  {{ jalali_columns('t.created_at', alias='_created', prefix='created_',
+                    fields=['weekday_num', 'month_name']) }},
+  {{ jalali_columns('t.closed_at',  alias='_closed',  prefix='closed_',
+                    fields=['year', 'week_of_year', 'week_start']) }}
+FROM tickets AS t
+{{ jalali_join('t.created_at', alias='_created') }}
+{{ jalali_join('t.closed_at',  alias='_closed') }}
+```
+
+This adds exactly `created_weekday_num`, `created_month_name`, `closed_year`,
+`closed_week_of_year` and `closed_week_start`, in that order (the order you
+list). The valid names are `year`, `month_num`, `day`, `date`, `date_int`,
+`month_name`, `season`, `weekday`, `weekday_num`, `week_of_year`, `week_start`
+and `week_start_date`. A list, a tuple or a comma-separated string works
+(`fields='weekday_num, month_name'`). An unknown name, a duplicate, an empty list
+or anything that is not a plain field name is an error, and the message lists the
+valid names. The SQL contains only the chosen columns, so it is shorter.
+`jalali_join` is unchanged: it needs the same `alias` as its `jalali_columns`.
+
 ## 6. Options
 
 | Argument | Where | Meaning |
 | --- | --- | --- |
 | `alias='_jy'` | both macros | Name of the joined year table; must match in the pair. |
 | `prefix='jalali_'` | `jalali_columns` | Prefix of the output column names; `''` is allowed. |
+| `fields=None` | `jalali_columns` | Which columns to generate, e.g. `['weekday_num', 'month_name']`; default all 12. |
 | `digits='persian'` | `jalali_columns` | Persian digits in text columns (`۱۴۰۳/۰۷/۱۸`); numbers stay numeric. |
 | `tz='Asia/Tehran'` | both macros | For `timestamptz` columns only: use Tehran local dates. Use the same value in both macros. |
 

@@ -328,6 +328,10 @@ case, so a prefix like `Jalali_` produces `jalali_year`. Expressions, comments,
 whitespace outside quotes and arbitrary SQL are rejected. Each identifier part
 must fit PostgreSQL's 63-byte limit. Aliases must match in the two macros and
 avoid dataset collisions.
+`fields=['weekday_num', 'month_name']` generates only those columns, in that
+order (a list, tuple or comma-separated string; default: all 12), for example
+`{{ jalali_columns('t.created_at', alias='_c', prefix='created_', fields=['year', 'week_of_year']) }}`
+([docs/USAGE.md](docs/USAGE.md#only-the-columns-you-need)).
 `digits='persian'` translates digits in text keys/labels only; numeric columns
 stay numeric. `g2j(date)` and `j2g(year, month, day)` are also available to Jinja.
 
