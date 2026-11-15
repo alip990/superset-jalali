@@ -238,3 +238,36 @@ def test_week_start_date_is_null_in_the_first_week_of_the_window(conn):
                        + ' ORDER BY 1').fetchall()
     assert row[0][3] == '1403/01/01' and row[0][10] == '2024-03-16' and row[0][11] is None
     assert row[1][11] == '1403/01/04'
+
+
+def test_chosen_fields_equal_the_same_columns_of_the_full_set(conn):
+    """fields=[...] on two date columns with their own alias and prefix, for every day of a 60-year range."""
+    app = Flask(__name__)
+    app.config['JALALI'] = dict(sql_min_year=1390, sql_max_year=1420)
+    with app.app_context():
+        sql = f"""SELECT t.occurred, t.created,
+  {jalali_columns('t.occurred', alias='_occ', prefix='occ_', fields=['weekday_num', 'month_name', 'week_start'])},
+  {jalali_columns('t.created', alias='_cre', prefix='cre_', fields=['year', 'week_of_year'])},
+  {jalali_columns('t.occurred', alias='_all', prefix='all_')}
+FROM (SELECT d AS occurred, d + interval '90 days' AS created
+      FROM generate_series('{FIRST}'::timestamp, '{LAST}', '1 day') AS d) AS t
+{jalali_join('t.occurred', alias='_occ')}
+{jalali_join('t.created', alias='_cre')}
+{jalali_join('t.occurred', alias='_all')} ORDER BY 1"""
+    cursor = conn.execute(sql)
+    names = [column.name for column in cursor.description]
+    rows = [dict(zip(names, row)) for row in cursor.fetchall()]
+    assert len(rows) == (LAST - FIRST).days + 1
+    assert [name for name in names if name.startswith('occ_')] == ['occ_weekday_num', 'occ_month_name', 'occ_week_start']
+    assert [name for name in names if name.startswith('cre_')] == ['cre_year', 'cre_week_of_year']
+    assert 'jalali_week_start' not in names
+    mismatches = [row['occurred'] for row in rows if (row['occ_weekday_num'], row['occ_month_name'], row['occ_week_start']) !=
+                  (row['all_weekday_num'], row['all_month_name'], row['all_week_start'])]
+    assert mismatches[:3] == []
+    # The second pair is computed from its own date column, 90 days later.
+    for row in rows[::997]:
+        later = row['created'].date()
+        year = g2j(later)[0]
+        assert row['cre_year'] == (year if 1390 <= year <= 1420 else None)
+        assert row['cre_week_of_year'] == (week_of_year(later) if 1390 <= year <= 1420 else None)
+    assert any(row['occ_week_start'] is not None for row in rows) and any(row['occ_week_start'] is None for row in rows)

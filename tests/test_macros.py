@@ -287,3 +287,50 @@ def test_single_field_year_lists_match_the_join_table(lo, hi):
             literal = f"DATE '{value}'" if index < 3 else str(value)
             assert f'WHEN {gyear} THEN {literal}' in sql
     assert 'THEN NULL' not in sql
+
+
+def _aliases(sql):
+    return {column.alias: column.this.sql(dialect='postgres') for column in sqlglot.parse_one('SELECT ' + sql, read='postgres').expressions}
+
+
+def test_fields_generate_only_the_chosen_columns_in_the_given_order():
+    full = _aliases(jalali_columns('t.d'))
+    chosen = jalali_columns('t.d', fields=['weekday_num', 'month_name'])
+    assert [column.alias for column in sqlglot.parse_one('SELECT ' + chosen, read='postgres').expressions] == [
+        'jalali_weekday_num', 'jalali_month_name']
+    assert _aliases(chosen) == {name: full[name] for name in ('jalali_weekday_num', 'jalali_month_name')}  # same SQL as the full set
+    assert list(_aliases(jalali_columns('t.d', fields=['day', 'year']))) == ['jalali_day', 'jalali_year']
+    assert 'translate(' not in chosen
+
+
+@pytest.mark.parametrize('fields', [['week_start', 'year'], ('week_start', 'year'), 'week_start,year', ' week_start , year '])
+@pytest.mark.parametrize('prefix,names', [('jalali_', ['week_start', 'jalali_year']), ('created_', ['created_week_start', 'created_year']),
+                                          ('', ['week_start', 'year'])])
+def test_fields_accept_lists_tuples_and_comma_strings_and_follow_the_prefix_rules(fields, prefix, names):
+    assert list(_aliases(jalali_columns('t.d', prefix=prefix, fields=fields))) == names
+
+
+@pytest.mark.parametrize('bad', [[], (), '', 5, ['year', 'year'], ['nope'], ['jalali_year'], ['YEAR'], ['month_label'],
+                                 ['year; drop table x'], ['year', 'day --'], [['year']], [None], 'year,,day', {'year': 1}])
+def test_invalid_fields_are_rejected(bad):
+    with pytest.raises(ValueError): jalali_columns('t.d', fields=bad)
+
+
+def test_fields_error_names_the_valid_fields():
+    with pytest.raises(ValueError, match='week_of_year') as error:
+        jalali_columns('t.d', fields=['month_label'])
+    assert "'month_label'" in str(error.value)
+
+
+def test_fields_work_in_a_jinja_query_with_two_date_columns():
+    import jinja2
+    template = jinja2.Environment().from_string('''SELECT t.*,
+  {{ jalali_columns('t."OccouredDate"', alias='_occ', prefix='occoured_', fields=['weekday_num', 'month_name']) }},
+  {{ jalali_columns('t."CreatedAt"', alias='_cre', prefix='created_', fields=['year']) }}
+FROM "CR"."DeviceCrime" AS t
+{{ jalali_join('t."OccouredDate"', alias='_occ') }}
+{{ jalali_join('t."CreatedAt"', alias='_cre') }}''')
+    sql = template.render(jalali_columns=jalali_columns, jalali_join=jalali_join)
+    tree = sqlglot.parse_one(sql, read='postgres')
+    assert [column.alias_or_name for column in tree.expressions] == ['*', 'occoured_weekday_num', 'occoured_month_name', 'created_year']
+    assert 'jalali_' not in sql.replace('jalali_columns', '')

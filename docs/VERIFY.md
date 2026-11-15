@@ -79,6 +79,9 @@ guest tokens or other credentials.
 - [ ] With template processing explicitly enabled, run a PostgreSQL virtual
   dataset using both macros. Verify Nowruz, leap Esfand, all 12 columns, Saturday
   week starts (`jalali_week_start_date` is Jalali; 1403/01/01 → 1402/12/26), NULL dates, out-of-window dates and Persian digit formatting.
+- [ ] `jalali_columns('t.d', fields=['weekday_num', 'month_name'])` in a virtual
+  dataset adds exactly those two columns; `fields=['nope']` fails with the list
+  of valid names.
 - [ ] With a UTC PostgreSQL session and `sql_timezone` unset, test `timestamptz`
   values around Tehran midnight using **both** macros with `tz='Asia/Tehran'`:
   `2025-03-20 20:29:59+00` yields `1403/12/30`, while
