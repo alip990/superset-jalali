@@ -219,3 +219,40 @@ bundle and checks this.
   Gregorian dates in the global mode) until it renders again (Run, a control
   change or a resize). The bundle is small and cached as immutable, so this is
   rare and only on a cold Explore load.
+
+### Jalali Calendar Heatmap
+
+`cal_heatmap` is a legacy chart: Superset's `transformProps` turns the
+`explore_json` response into `{data: {metric: {epochSeconds: value}}, start, domain, subdomain, range, ...}`
+and its component draws it with the vendored `cal-heatmap` library
+([legacy-plugin-chart-calendar/src/Calendar.ts](https://github.com/apache/superset/blob/6.1.0/superset-frontend/plugins/legacy-plugin-chart-calendar/src/Calendar.ts)),
+which builds months and weeks from JavaScript's Gregorian calendar. Everything
+else about the chart (controls, query, transformProps) can stay.
+
+`ChartPlugin.register()` stores the component in the shared
+`ChartComponentRegistry` as a loader
+([ChartPlugin.ts](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/chart/models/ChartPlugin.ts)),
+and `SuperChartCore` asks that registry for the component on every render
+([SuperChartCore.tsx](https://github.com/apache/superset/blob/6.1.0/superset-frontend/packages/superset-ui-core/src/chart/components/SuperChartCore.tsx)).
+With `JALALI["jalali_calendar_heatmap"]` the bundle (read from `?cal_heatmap=1`
+on its URL, like `smart_date`) removes the entry for `cal_heatmap` and registers
+its own component under the same key. `remove` also drops the registry's cached
+promise of the original. The original loader is kept and called only when
+needed.
+
+The replacement uses Superset's props unchanged. For domain month/year with
+subdomain day it sums the values per UTC day (the backend's day keys), covers
+the range `range` Gregorian domains from `start` (the start's own month or year
+counts as the first) plus any day with data outside it, and draws one SVG block
+per Jalali month or year with `calendarLayout.ts`: a column per week,
+Saturday-first rows, columns right to left. Colours come from
+`getSequentialSchemeRegistry()`'s `createLinearScale`, like the original.
+Anything else (other domains, years outside 1350–1550, more than 60 blocks)
+renders Superset's original component with the same props. That component is an
+emotion-styled `forwardRef` object, not a function, so it is held in a box
+before being rendered.
+
+The load-order limits are the same as for the time formats above: dashboards
+wait for the bundle; in Explore a chart drawn before it loaded keeps Superset's
+drawing until it renders again (observed: a cold Explore load already drew
+Jalali).

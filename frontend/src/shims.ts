@@ -19,9 +19,18 @@ function shared<T>(name: string): T {
 }
 export const React = shared<typeof ReactTypes>('react');
 export const ReactDOM = shared<typeof ReactDOMTypes>('react-dom');
+export interface SequentialScheme { createLinearScale: (extent: [number, number]) => (value: number) => string }
+/** Superset's Registry: items hold either a value or a loader. */
+export interface ComponentRegistry {
+  items: Record<string, {value: unknown} | {loader: () => unknown} | undefined>;
+  remove: (key: string) => unknown;
+  registerValue: (key: string, value: unknown) => unknown;
+}
 export interface Core {
   getExtensionsRegistry: () => Registry;
   getTimeFormatterRegistry: () => TimeFormatterRegistry;
   TimeFormatter: TimeFormatterClass;
+  getChartComponentRegistry: () => ComponentRegistry;
+  getSequentialSchemeRegistry: () => {get: (id: string) => SequentialScheme | undefined};
 }
 export const core = shared<Core>('@superset-ui/core');

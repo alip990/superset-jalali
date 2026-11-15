@@ -132,6 +132,25 @@ describe('bundle entry', () => {
     expect(calls[1]).toEqual(['register', registry, TimeFormatter, smart]);
   });
 
+  it.each([[true], [false]])('replaces the calendar heatmap only when asked (flag: %s)', async flag => {
+    const calls: unknown[][] = [];
+    vi.doMock('../src/timeFormats', async original => ({
+      ...(await original<typeof import('../src/timeFormats')>()),
+      flagFromUrl: (url: string, name: string) => {calls.push(['flag', name]); return flag && name === 'cal_heatmap';},
+      registerTimeFormats: () => undefined,
+    }));
+    vi.doMock('../src/calendarHeatmap', () => ({registerCalendarHeatmap: (registry: unknown) => {calls.push(['register', registry]);}}));
+    const components = {};
+    vi.stubGlobal('__VERSION__', 'test');
+    vi.stubGlobal('window', {'__superset__/react':{}, '__superset__/react-dom':{}, '__superset__/@superset-ui/core':{
+      getExtensionsRegistry: () => ({get: () => undefined, set: () => undefined}),
+      getTimeFormatterRegistry: () => ({}), TimeFormatter: class {}, getChartComponentRegistry: () => components,
+    }});
+    await import('../src/index');
+    expect(calls).toEqual(flag ? [['flag', 'cal_heatmap'], ['register', components]] : [['flag', 'cal_heatmap']]);
+    vi.doUnmock('../src/calendarHeatmap');
+  });
+
   it('keeps import.meta.url in the production bundle', async () => {
     const { build } = await import('esbuild');
     const path = '../esbuild.options.mjs';

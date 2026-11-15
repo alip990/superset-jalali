@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — unreleased
+
+- Opt-in `JALALI["jalali_calendar_heatmap"] = True`: Superset's own **Calendar
+  Heatmap** (`cal_heatmap`) draws Jalali months (Farvardin … Esfand, weeks
+  Saturday→Friday, right to left) with Jalali tooltips, so existing charts and
+  dashboards turn Jalali without being edited. The chart keeps Superset's query,
+  controls and colour schemes; only its drawing component is replaced. Domain
+  month or year with subdomain day is drawn; other combinations (and dates
+  outside 1350–1550) use Superset's original chart.
+
 ## 0.2.0 — unreleased
 
 - New fields `week_start_date` (Jalali date of the week's Saturday, e.g.

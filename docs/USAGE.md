@@ -244,6 +244,28 @@ default time format (time-series axes and tooltips, Table, Heatmap) shows Jalali
 dates without per-chart settings. Charts with an explicit format such as
 `%Y-%m-%d` keep it. Off by default; restart Superset and reload the page.
 
+### Calendar Heatmap in Jalali (optional)
+
+Superset's **Calendar Heatmap** draws Gregorian month blocks with its own
+library, which no format can change. With
+
+```python
+JALALI = {**JALALI, "jalali_calendar_heatmap": True}
+```
+
+the bundle replaces that chart's drawing code, so every existing Calendar
+Heatmap (dashboards, embedded dashboards, Explore) shows one block per Jalali
+month, weeks running Saturday→Friday from right to left, with tooltips like
+`پنج‌شنبه ۱۴۰۳/۱۲/۳۰: 2.91k`. Query, controls, colour scheme, legend, cell
+size/padding/radius and "Show values" are Superset's own. Domain **month** or
+**year** with subdomain **day** is drawn in Jalali; any other combination, and
+dates outside 1350–1550, are drawn by Superset's original chart. The tooltip
+date is always Jalali, whatever the chart's Time format says.
+
+Superset's chart needs an explicit time range (it refuses «No filter» with "Please
+provide both time bounds"): set the chart's Time range, or make sure the
+dashboard's time filter has a value.
+
 In Explore, a chart can render before the plugin bundle has loaded, and then
 shows `jalali_date` literally (or Gregorian dates in the global mode) until it
 renders again (Run, a control change, a resize). Dashboards wait for the bundle

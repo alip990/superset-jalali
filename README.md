@@ -393,6 +393,7 @@ JALALI = {
     "sql_timezone": None,
     "columns_ui_enabled": True,
     "jalali_smart_date": False,
+    "jalali_calendar_heatmap": False,
 }
 ```
 
@@ -405,6 +406,7 @@ JALALI = {
 | `sql_timezone` | `None` | Local timezone for `timestamptz` columns only; a non-`None` macro `tz` argument overrides it. Use the same timezone in both macros. |
 | `columns_ui_enabled` | `True` | `False` hides the Jalali columns page and menu link; the page and its API return 404. The CLI and existing columns keep working. Independent of `datefilter_enabled`. |
 | `jalali_smart_date` | `False` | `True` replaces Superset's default `smart_date` time formats with Jalali ones in every chart ([Jalali dates in charts](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle (`datefilter_enabled`). |
+| `jalali_calendar_heatmap` | `False` | `True` makes Superset's **Calendar Heatmap** chart draw Jalali months, for existing charts too ([docs/USAGE.md](docs/USAGE.md#8-jalali-dates-in-charts)). Needs the picker bundle. |
 
 The join cost barely depends on the SQL year window; narrow it only to
 NULL out unwanted years. The SQL settings do not restrict the picker's calendar.

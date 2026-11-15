@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "superset-jalali"
-version = "0.2.0"
+version = "0.3.0"
 description = "Jalali dashboard time range picker and PostgreSQL Jinja macros for Apache Superset"
 readme = "README.md"
 requires-python = ">=3.10"
